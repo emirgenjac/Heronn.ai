@@ -52,15 +52,18 @@ export function App() {
   const [selected, setSelected] = useState(0)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [always, setAlways] = useState<Set<string>>(() => new Set())
+  const [machineAlways, setMachineAlways] = useState<Set<string>>(() => new Set())
   const [toasts, setToasts] = useState<Toast[]>([])
   const [flash, setFlash] = useState(false)
   const prevAutonomy = useRef(stats.autonomy)
   const groupsRef = useRef(groups)
   const selectedRef = useRef(selected)
   const alwaysRef = useRef(always)
+  const machineRef = useRef(machineAlways)
   groupsRef.current = groups
   selectedRef.current = selected
   alwaysRef.current = always
+  machineRef.current = machineAlways
 
   useEffect(() => {
     return subscribe((snap) => {
@@ -109,25 +112,50 @@ export function App() {
   }
 
   function onDecide(group: Group, action: Action) {
-    const createRule = action === 'allow' && alwaysRef.current.has(group.fingerprint) && !group.destructive
+    const onPc = machineRef.current.has(group.fingerprint)
+    const onRepo = alwaysRef.current.has(group.fingerprint)
+    const createRule = action === 'allow' && (onPc || onRepo) && !group.destructive
     void decide({
       interruptIds: group.interruptIds,
       action,
       createRule,
-      scope: 'repo',
+      scope: onPc ? 'global' : 'repo',
       by: 'web',
     })
     applyLocal(group.fingerprint, group.count, createRule)
-    if (createRule) showToast('Rule created — future matches auto-approved')
+    if (createRule) {
+      showToast(onPc ? 'Rule created — this PC (all repos)' : 'Rule created — this project')
+    }
   }
 
   function toggleAlways(group: Group) {
     if (group.destructive) return
     const next = new Set(alwaysRef.current)
     if (next.has(group.fingerprint)) next.delete(group.fingerprint)
-    else next.add(group.fingerprint)
+    else {
+      next.add(group.fingerprint)
+      const machines = new Set(machineRef.current)
+      machines.delete(group.fingerprint)
+      machineRef.current = machines
+      setMachineAlways(machines)
+    }
     alwaysRef.current = next
     setAlways(next)
+  }
+
+  function toggleMachine(group: Group) {
+    if (group.destructive) return
+    const next = new Set(machineRef.current)
+    if (next.has(group.fingerprint)) next.delete(group.fingerprint)
+    else {
+      next.add(group.fingerprint)
+      const repos = new Set(alwaysRef.current)
+      repos.delete(group.fingerprint)
+      alwaysRef.current = repos
+      setAlways(repos)
+    }
+    machineRef.current = next
+    setMachineAlways(next)
   }
 
   useEffect(() => {
@@ -152,6 +180,9 @@ export function App() {
       } else if (e.key === 'r') {
         e.preventDefault()
         toggleAlways(group)
+      } else if (e.key === 'g') {
+        e.preventDefault()
+        toggleMachine(group)
       } else if (e.key === 'Enter') {
         e.preventDefault()
         setExpanded((cur) => (cur === group.fingerprint ? null : group.fingerprint))
@@ -202,6 +233,7 @@ export function App() {
             const repo = LIVE ? undefined : repoFor(group.fingerprint)
             const isSelected = index === Math.min(selected, groups.length - 1)
             const alwaysOn = always.has(group.fingerprint)
+            const machineOn = machineAlways.has(group.fingerprint)
             return (
               <article
                 key={group.fingerprint}
@@ -235,7 +267,19 @@ export function App() {
                       disabled={group.destructive}
                       onChange={() => toggleAlways(group)}
                     />
-                    <span>always allow this</span>
+                    <span>this project</span>
+                  </label>
+                  <label
+                    className={`check${group.destructive ? ' disabled' : ''}`}
+                    title={group.destructive ? 'destructive actions can never become a rule' : undefined}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={machineOn && !group.destructive}
+                      disabled={group.destructive}
+                      onChange={() => toggleMachine(group)}
+                    />
+                    <span>this PC</span>
                   </label>
                 </div>
                 {expanded === group.fingerprint ? (
@@ -251,7 +295,10 @@ export function App() {
         </div>
       )}
 
-      <div className="hint">j/k select · a allow · d deny · r always allow · enter detail{LIVE ? ' · LIVE' : ' · MOCK'}</div>
+      <div className="hint">
+        j/k select · a allow · d deny · r this project · g this PC · enter detail
+        {LIVE ? ' · LIVE' : ' · MOCK'}
+      </div>
 
       {toasts.map((t) => (
         <div key={t.id} className="toast" role="status">

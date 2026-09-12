@@ -76,7 +76,7 @@ app.post('/api/decide', (req, res) => {
         }
         if (command) {
           const cls = classifyCommand(command, loadPolicies().classMap)
-          recordAllow(first.repo, command, cls)
+          recordAllow(first.repo, command, cls, decision.scope)
         }
       }
     }

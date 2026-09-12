@@ -10,15 +10,18 @@ export type DecisionRecord = {
   ts: number
 }
 
-export type ProjectPolicy = {
+export type ScopedPolicy = {
   allowClasses: string[]
   allowPrefixes: string[]
   decisions: DecisionRecord[]
 }
 
+export type ProjectPolicy = ScopedPolicy
+
 export type PoliciesFile = {
   blacklist: { prefixes: string[]; bins: string[] }
   classMap: Record<string, string>
+  machine: ScopedPolicy
   projects: Record<string, ProjectPolicy>
 }
 
@@ -38,14 +41,25 @@ function enqueueWrite(fn: () => void): void {
   }
 }
 
+function emptyPolicy(): ScopedPolicy {
+  return { allowClasses: [], allowPrefixes: [], decisions: [] }
+}
+
 export function loadPolicies(): PoliciesFile {
-  const raw = JSON.parse(readFileSync(PATH, 'utf8')) as Partial<PoliciesFile>
+  const raw = JSON.parse(readFileSync(PATH, 'utf8')) as Partial<PoliciesFile> & {
+    machine?: Partial<ScopedPolicy>
+  }
   return {
     blacklist: {
       prefixes: raw.blacklist?.prefixes ?? [],
       bins: raw.blacklist?.bins ?? [],
     },
     classMap: raw.classMap ?? {},
+    machine: {
+      allowClasses: raw.machine?.allowClasses ?? [],
+      allowPrefixes: raw.machine?.allowPrefixes ?? [],
+      decisions: raw.machine?.decisions ?? [],
+    },
     projects: raw.projects ?? {},
   }
 }
@@ -54,30 +68,44 @@ function savePolicies(policies: PoliciesFile): void {
   writeFileSync(PATH, `${JSON.stringify(policies, null, 2)}\n`)
 }
 
-function emptyProject(): ProjectPolicy {
-  return { allowClasses: [], allowPrefixes: [], decisions: [] }
+function matches(policy: ScopedPolicy | undefined, command: string, cls: CommandClass): boolean {
+  if (!policy) return false
+  if (longestPrefix(command, policy.allowPrefixes)) return true
+  if (neverAutoAllow(cls)) return false
+  return policy.allowClasses.includes(cls)
 }
 
 export function lookupAllow(repo: string, command: string, cls: CommandClass): boolean {
-  const project = loadPolicies().projects[repo]
-  if (!project) return false
-  if (longestPrefix(command, project.allowPrefixes)) return true
-  if (neverAutoAllow(cls)) return false
-  return project.allowClasses.includes(cls)
+  const policies = loadPolicies()
+  if (matches(policies.machine, command, cls)) return true
+  return matches(policies.projects[repo], command, cls)
 }
 
-export function recordAllow(repo: string, command: string, cls: CommandClass): void {
+function applyAllow(policy: ScopedPolicy, command: string, cls: CommandClass): void {
+  if (!neverAutoAllow(cls) && !policy.allowClasses.includes(cls)) {
+    policy.allowClasses.push(cls)
+  }
+  const prefix = neverAutoAllow(cls) ? normalizeCmd(command) : stablePrefix(command)
+  const exists = policy.allowPrefixes.some((p) => normalizeCmd(p) === normalizeCmd(prefix))
+  if (prefix && !exists) policy.allowPrefixes.push(prefix)
+  policy.decisions.push({ command, class: cls, action: 'allow', ts: Date.now() })
+}
+
+export function recordAllow(
+  repo: string,
+  command: string,
+  cls: CommandClass,
+  scope: 'repo' | 'global' = 'repo',
+): void {
   enqueueWrite(() => {
     const policies = loadPolicies()
-    const project = policies.projects[repo] ?? emptyProject()
-    if (!neverAutoAllow(cls) && !project.allowClasses.includes(cls)) {
-      project.allowClasses.push(cls)
+    if (scope === 'global') {
+      applyAllow(policies.machine, command, cls)
+    } else {
+      const project = policies.projects[repo] ?? emptyPolicy()
+      applyAllow(project, command, cls)
+      policies.projects[repo] = project
     }
-    const prefix = neverAutoAllow(cls) ? normalizeCmd(command) : stablePrefix(command)
-    const exists = project.allowPrefixes.some((p) => normalizeCmd(p) === normalizeCmd(prefix))
-    if (prefix && !exists) project.allowPrefixes.push(prefix)
-    project.decisions.push({ command, class: cls, action: 'allow', ts: Date.now() })
-    policies.projects[repo] = project
     savePolicies(policies)
   })
 }

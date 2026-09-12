@@ -33,6 +33,11 @@
     "poetry": "dependency",
     "cargo": "dependency"
   },
+  "machine": {
+    "allowClasses": [],
+    "allowPrefixes": [],
+    "decisions": []
+  },
   "projects": {
     "Adria-Hack-AI-Project": {
       "allowClasses": [
