@@ -58,7 +58,7 @@ function fingerprintBash(stage: Stage, cwd: string, repo: string): string {
 }
 
 function otherPath(args: Record<string, unknown>): string | null {
-  for (const key of ['path', 'file', 'target', 'filename']) {
+  for (const key of ['file_path', 'path', 'file', 'filepath', 'target', 'filename']) {
     const v = args[key]
     if (typeof v === 'string' && v.length > 0) return v
   }
