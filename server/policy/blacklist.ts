@@ -67,6 +67,7 @@ function bannedBinsFromParsed(parsed: ParsedCommand, bins: Set<string>): boolean
 
 export function isPrefixBlacklisted(command: string): boolean {
   const cmd = normalizeCmd(command)
+<<<<<<< HEAD
   if (!cmd) return false
   const index = loadBlacklistIndex()
   for (const prefix of index.prefixes) {
@@ -88,6 +89,22 @@ export function isBlacklisted(command: string, cwd: string, repo: string): boole
   try {
     const parsed = parseCommand(normalizeCmd(command))
     if (bannedBinsFromParsed(parsed, loadBlacklistIndex().bins)) return true
+=======
+
+  if (longestPrefix(cmd, policies.blacklist.prefixes)) return true
+
+  let parsed
+  try {
+    parsed = parseCommand(cmd)
+  } catch {
+
+    return true
+  }
+
+  if (bannedBins(parsed.stages, getBannedSet(policies.blacklist.bins))) return true
+
+  try {
+>>>>>>> origin/main
     return isDestructiveCommand(parsed, cwd, repo)
   } catch {
     return true
