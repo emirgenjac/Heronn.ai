@@ -3,9 +3,8 @@ import { parseCommand } from '../engine/parse.ts'
 import { longestPrefix, normalizeCmd } from './prefix.ts'
 import { loadPolicies } from './store.ts'
 
-function bannedBins(command: string, bins: string[]): boolean {
+function bannedBinsFromParsed(parsed: ReturnType<typeof parseCommand>, bins: string[]): boolean {
   const banned = new Set(bins.map((b) => b.toLowerCase()))
-  const parsed = parseCommand(command)
   for (const stage of parsed.stages) {
     if (banned.has(stage.bin.toLowerCase())) return true
     if (stage.bin === 'sudo' || stage.bin === 'doas') {
@@ -16,13 +15,19 @@ function bannedBins(command: string, bins: string[]): boolean {
   return false
 }
 
+export function isPrefixBlacklisted(command: string): boolean {
+  const policies = loadPolicies()
+  return Boolean(longestPrefix(normalizeCmd(command), policies.blacklist.prefixes))
+}
+
 export function isBlacklisted(command: string, cwd: string, repo: string): boolean {
   const policies = loadPolicies()
   const cmd = normalizeCmd(command)
   if (longestPrefix(cmd, policies.blacklist.prefixes)) return true
-  if (bannedBins(cmd, policies.blacklist.bins)) return true
   try {
-    return isDestructiveCommand(parseCommand(cmd), cwd, repo)
+    const parsed = parseCommand(cmd)
+    if (bannedBinsFromParsed(parsed, policies.blacklist.bins)) return true
+    return isDestructiveCommand(parsed, cwd, repo)
   } catch {
     return true
   }

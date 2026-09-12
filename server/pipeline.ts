@@ -5,8 +5,7 @@ import { broadcast } from './sse.ts'
 import { park } from './waiters.ts'
 
 export function handleInterrupt(i: Interrupt): Promise<Action> {
-  const canon = canonicalise(i)
-  const interrupt: Interrupt = { ...i, ...canon }
+  const interrupt: Interrupt = i.fingerprint ? i : { ...i, ...canonicalise(i) }
   const rule = match(interrupt.fingerprint, interrupt.repo)
 
   if (rule) {

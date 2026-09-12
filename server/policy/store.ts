@@ -24,6 +24,8 @@ export type PoliciesFile = {
 
 const PATH = join(import.meta.dirname, 'policies.json')
 
+let cached: PoliciesFile | null = null
+
 const pending: Array<() => void> = []
 let draining = false
 
@@ -38,7 +40,7 @@ function enqueueWrite(fn: () => void): void {
   }
 }
 
-export function loadPolicies(): PoliciesFile {
+function readPolicies(): PoliciesFile {
   const raw = JSON.parse(readFileSync(PATH, 'utf8')) as Partial<PoliciesFile>
   return {
     blacklist: {
@@ -50,7 +52,13 @@ export function loadPolicies(): PoliciesFile {
   }
 }
 
+export function loadPolicies(): PoliciesFile {
+  cached ??= readPolicies()
+  return cached
+}
+
 function savePolicies(policies: PoliciesFile): void {
+  cached = policies
   writeFileSync(PATH, `${JSON.stringify(policies, null, 2)}\n`)
 }
 
