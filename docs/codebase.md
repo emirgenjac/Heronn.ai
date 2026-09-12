@@ -93,7 +93,7 @@ IDE hook  →  POST /hook/cursor or /hook/claude-code
                 └─ Interrupt
                       │
                       ▼
-              evaluateCommand (Cursor today)
+              evaluateCommand (Cursor + Claude)
                       │
          ┌────────────┼────────────┐
          ▼            ▼            ▼
@@ -109,7 +109,7 @@ IDE hook  →  POST /hook/cursor or /hook/claude-code
                                       optional addRule + recordAllow
 ```
 
-Claude’s route currently calls `handleInterrupt` only (fingerprint + park), **not** `evaluateCommand`. Cursor uses the full policy path.
+Cursor and Claude both call `evaluateCommand` (blacklist → class allow → fingerprint / park).
 
 ### HTTP API
 
@@ -120,7 +120,7 @@ Claude’s route currently calls `handleInterrupt` only (fingerprint + park), **
 | GET | `/api/stream` | SSE `event: update`, 1s heartbeat, timeouts 0 |
 | POST | `/api/decide` | Zod `Decision`. Marks decided, `settle`, maybe `addRule` + `recordAllow`, `broadcast`. |
 | POST | `/api/replay` | Replays `fixtures/interrupts.jsonl` through `handleInterrupt` (speed optional). |
-| POST | `/hook/claude-code` | Adapter → `handleInterrupt` → Claude hook JSON. |
+| POST | `/hook/claude-code` | Adapter → `evaluateCommand` → Claude hook JSON. |
 | POST | `/hook/cursor` | Adapter → `evaluateCommand` → flat Cursor payload **and** `hookSpecificOutput`. |
 
 Hook errors and unparseable bodies return **ask**, never allow. Express JSON parse errors on `/hook/*` are caught by the error middleware the same way.
@@ -240,7 +240,7 @@ Used for fingerprints, titles, destructive flags, and exact-command rules.
 | --- | --- |
 | `parse.ts` | Tokenizer (no regex). Stages + ops (`|`, `&&`, …). Package-manager normalize (`pnpm add` → argv0 `npm` + `install`). |
 | `classify.ts` | Operand kinds, path inside-repo vs sensitive, `isDestructiveCommand`. |
-| `canonicalise.ts` | Bash/Shell: SHA-1 of `[argv0, subcommand, sorted flags, redacted operands, repo]`. Other tools: tool + arg keys + path shape. Unparseable → destructive + special fingerprint. |
+| `canonicalise.ts` | Bash/Shell: SHA-1 of `[argv0, subcommand, sorted flags, redacted operands, repo]`. Other tools: tool + arg keys + path shape (`file_path`, `path`, …). Unparseable → destructive + special fingerprint. |
 | `rules.ts` | In-memory maps + SQLite persist. `match` prefers repo rule then global; increments hits. |
 | `index.ts` | Re-exports; `loadRules()` on import. |
 | `canonicalise.test.ts` | `node --import tsx --test server/engine/canonicalise.test.ts` |
