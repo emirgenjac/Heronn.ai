@@ -1,8 +1,19 @@
-import type { Decision, Group, Stats } from '../../shared/types.ts'
+import type { Decision, Group, Rule, Stats } from '../../shared/types.ts'
 import { LIVE } from './live.ts'
 import { decideMock, subscribeMock } from './mock.ts'
 
-export type Snapshot = { groups: Group[]; stats: Stats }
+export type QueueAgent = {
+  id: string
+  host: string
+  sessionId: string
+  cwd: string
+  repo: string
+  tool: string
+  ts: number
+  command: string
+}
+
+export type Snapshot = { groups: Group[]; agents?: Record<string, QueueAgent[]>; stats: Stats }
 
 export type Diag = {
   ok: boolean
@@ -11,6 +22,63 @@ export type Diag = {
   lastCursorHookAt: number | null
   cursorHookHits: number
   lastCursorLog: string
+}
+
+export type PolicyDecision = { command: string; class: string; action: string; ts: number }
+
+export type ScopedPolicy = {
+  allowClasses: string[]
+  allowPrefixes: string[]
+  decisions: PolicyDecision[]
+}
+
+export type PolicySnapshot = {
+  machine: ScopedPolicy
+  projects: Record<string, ScopedPolicy>
+  rules: Rule[]
+}
+
+export type PolicyOp = {
+  op: 'allow' | 'deny' | 'forget'
+  scope: 'repo' | 'global'
+  repo?: string
+  command?: string
+  class?: string
+  ruleId?: string
+  prefix?: string
+  fingerprint?: string
+}
+
+export type LogRow = {
+  id: string
+  ts: number
+  host: string
+  repo: string
+  tool: string
+  args: string
+  fingerprint: string
+  title: string
+  detail: string
+  destructive: number
+  state: string
+  decision: string | null
+  decidedBy: string | null
+  decidedAt: number | null
+}
+
+export type LogQuery = {
+  q?: string
+  decidedBy?: string
+  action?: string
+  host?: string
+  from?: number
+  limit?: number
+}
+
+const EMPTY_POLICY: PolicySnapshot = {
+  machine: { allowClasses: [], allowPrefixes: [], decisions: [] },
+  projects: {},
+  rules: [],
 }
 
 export function subscribe(onData: (snap: Snapshot) => void): () => void {
@@ -49,6 +117,8 @@ export async function decide(body: Decision): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  }).then((res) => {
+    if (!res.ok) throw new Error(`decide failed: ${res.status}`)
   })
 }
 
@@ -70,4 +140,37 @@ export function subscribeDiag(onData: (diag: Diag) => void): () => void {
     stopped = true
     window.clearInterval(timer)
   }
+}
+
+export async function fetchPolicy(): Promise<PolicySnapshot> {
+  if (!LIVE) return EMPTY_POLICY
+  const res = await fetch('/api/policy')
+  if (!res.ok) throw new Error(`policy failed: ${res.status}`)
+  return res.json() as Promise<PolicySnapshot>
+}
+
+export async function postPolicy(body: PolicyOp): Promise<void> {
+  if (!LIVE) return
+  await fetch('/api/policy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then((res) => {
+    if (!res.ok) throw new Error(`policy failed: ${res.status}`)
+  })
+}
+
+export async function fetchLogs(query: LogQuery = {}): Promise<LogRow[]> {
+  if (!LIVE) return []
+  const params = new URLSearchParams()
+  if (query.q) params.set('q', query.q)
+  if (query.decidedBy) params.set('decidedBy', query.decidedBy)
+  if (query.action) params.set('action', query.action)
+  if (query.host) params.set('host', query.host)
+  if (typeof query.from === 'number') params.set('from', String(query.from))
+  if (query.limit) params.set('limit', String(query.limit))
+  const res = await fetch(`/api/logs?${params.toString()}`)
+  if (!res.ok) throw new Error(`logs failed: ${res.status}`)
+  const data = (await res.json()) as { rows: LogRow[] }
+  return data.rows
 }

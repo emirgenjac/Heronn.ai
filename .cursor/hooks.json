@@ -8,10 +8,23 @@
         "failClosed": true
       }
     ],
+    "afterShellExecution": [
+      {
+        "command": "node .cursor/hooks/relay.mjs",
+        "timeout": 30
+      }
+    ],
     "preToolUse": [
       {
         "command": "node .cursor/hooks/relay.mjs",
         "timeout": 540,
+        "matcher": "Shell"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node .cursor/hooks/relay.mjs",
+        "timeout": 30,
         "matcher": "Shell"
       }
     ]

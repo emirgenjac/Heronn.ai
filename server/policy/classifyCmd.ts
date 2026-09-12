@@ -22,6 +22,9 @@ const BUILD_BINS = new Set(['tsc', 'vite', 'webpack', 'esbuild', 'rollup'])
 const FS_WRITE_BINS = new Set(['mkdir', 'touch', 'cp', 'mv'])
 const NETWORK_BINS = new Set(['curl', 'wget'])
 const PM_BINS = new Set(['npm', 'pnpm', 'yarn', 'bun'])
+const NPX_BINS = new Set(['npx', 'pnpx', 'bunx'])
+const RUN_TEST_SCRIPTS = new Set(['test', 'tests'])
+const RUN_BUILD_SCRIPTS = new Set(['build'])
 
 export function neverAutoAllow(cls: CommandClass): boolean {
   return NEVER_AUTO.has(cls)
@@ -44,10 +47,22 @@ export function classifyCommand(command: string, classMap: Record<string, string
 
   if (stage.argv0 === 'npm' && stage.subcommand === 'install') return 'dependency'
   if (stage.argv0 === 'npm' && stage.subcommand === 'test') return 'test'
+  if (stage.argv0 === 'npm' && stage.subcommand === 'run') {
+    const script = stage.operands[0] ?? ''
+    if (RUN_TEST_SCRIPTS.has(script)) return 'test'
+    if (RUN_BUILD_SCRIPTS.has(script)) return 'build'
+  }
   if (PM_BINS.has(stage.bin) && DEP_SUBS.has(stage.subcommand)) return 'dependency'
 
-  if (TEST_BINS.has(stage.bin)) return 'test'
-  if (BUILD_BINS.has(stage.bin) || (stage.bin === 'cargo' && stage.subcommand === 'build')) return 'build'
+  const inner = NPX_BINS.has(stage.bin) ? stage.subcommand : ''
+  if (TEST_BINS.has(stage.bin) || TEST_BINS.has(inner)) return 'test'
+  if (
+    BUILD_BINS.has(stage.bin) ||
+    BUILD_BINS.has(inner) ||
+    (stage.bin === 'cargo' && stage.subcommand === 'build')
+  ) {
+    return 'build'
+  }
   if (stage.bin === 'cargo' && stage.subcommand === 'test') return 'test'
   if (FS_WRITE_BINS.has(stage.bin)) return 'fs-write'
   if (NETWORK_BINS.has(stage.bin)) return 'network'

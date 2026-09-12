@@ -1,7 +1,7 @@
 import type { Decision, Group, Interrupt, Stats } from '../../shared/types.ts'
 import jsonl from '../../fixtures/interrupts.jsonl?raw'
 
-export type Snapshot = { groups: Group[]; stats: Stats }
+export type Snapshot = { groups: Group[]; agents?: Record<string, never>; stats: Stats }
 export type DisplayGroup = Group & { repo?: string }
 
 type Listener = (snap: Snapshot) => void
@@ -116,6 +116,7 @@ function snapshot(): Snapshot {
   const s = store()
   return {
     groups: s.groups.map(({ repo: _repo, ...gr }) => gr),
+    agents: {},
     stats: statsFrom(s.groups, s.autoResolved, s.total),
   }
 }

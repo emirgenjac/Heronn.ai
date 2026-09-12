@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { neverAutoAllow, stablePrefix, type CommandClass } from './classifyCmd.ts'
+import { classifyCommand, neverAutoAllow, stablePrefix, type CommandClass } from './classifyCmd.ts'
 import { longestPrefix, normalizeCmd } from './prefix.ts'
 
 export type DecisionRecord = {
@@ -131,6 +131,71 @@ export function recordAllow(
       applyAllow(project, command, cls)
       policies.projects[repo] = project
     }
+    savePolicies(policies)
+  })
+}
+
+function scopedPolicy(policies: PoliciesFile, scope: 'repo' | 'global', repo?: string): ScopedPolicy | null {
+  if (scope === 'global') return policies.machine
+  if (!repo) return null
+  const project = policies.projects[repo] ?? emptyPolicy()
+  policies.projects[repo] = project
+  return project
+}
+
+export type ForgetInput = {
+  scope: 'repo' | 'global'
+  repo?: string
+  command?: string
+  class?: string
+  prefix?: string
+}
+
+export function forgetAllow(input: ForgetInput): void {
+  enqueueWrite(() => {
+    const policies = loadPolicies()
+    const policy = scopedPolicy(policies, input.scope, input.repo)
+    if (!policy) return
+
+    if (input.prefix) {
+      const target = normalizeCmd(input.prefix)
+      policy.allowPrefixes = policy.allowPrefixes.filter((p) => normalizeCmd(p) !== target)
+    }
+
+    if (input.class) {
+      policy.allowClasses = policy.allowClasses.filter((c) => c !== input.class)
+      policy.decisions = policy.decisions.filter((d) => d.class !== input.class)
+    }
+
+    if (input.command) {
+      const command = normalizeCmd(input.command)
+      const cls = classifyCommand(input.command, policies.classMap)
+      const prefix = neverAutoAllow(cls) ? command : stablePrefix(input.command)
+      const prefixNorm = normalizeCmd(prefix)
+      policy.allowPrefixes = policy.allowPrefixes.filter((p) => normalizeCmd(p) !== prefixNorm)
+      policy.decisions = policy.decisions.filter((d) => normalizeCmd(d.command) !== command)
+      const classStillUsed = policy.decisions.some((d) => d.class === cls)
+      if (!classStillUsed) {
+        policy.allowClasses = policy.allowClasses.filter((c) => c !== cls)
+      }
+    }
+
+    savePolicies(policies)
+  })
+}
+
+export function recordDeny(
+  repo: string,
+  command: string,
+  cls: CommandClass,
+  scope: 'repo' | 'global' = 'repo',
+): void {
+  forgetAllow({ scope, repo, command })
+  enqueueWrite(() => {
+    const policies = loadPolicies()
+    const policy = scopedPolicy(policies, scope, repo)
+    if (!policy) return
+    policy.decisions.push({ command, class: cls, action: 'deny', ts: Date.now() })
     savePolicies(policies)
   })
 }

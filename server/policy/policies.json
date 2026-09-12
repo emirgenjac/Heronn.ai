@@ -41,10 +41,15 @@
   "projects": {
     "Adria-Hack-AI-Project": {
       "allowClasses": [
-        "dependency"
+        "dependency",
+        "build"
       ],
       "allowPrefixes": [
-        "npm install"
+        "npm install",
+        "npx tsc",
+        "python cursor-inbox-verify-912.py",
+        "$before = Join-Path $env:TEMP 'adria-before.json' $after = Join-Path $env:TEMP 'adria-after.json' Set-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii Set-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii Write-Output '--- before ---' curl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\" Write-Output '' Write-Output '--- after ---' curl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\" Write-Output '' Write-Output '--- snapshot ---' curl.exe -sS http://127.0.0.1:7777/api/groups Write-Output '' Write-Output '--- logs ---' curl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+        "head -n 10 *.txt"
       ],
       "decisions": [
         {
@@ -52,6 +57,66 @@
           "class": "dependency",
           "action": "allow",
           "ts": 1789222882994
+        },
+        {
+          "command": "npx tsc --noEmit",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789242222562
+        },
+        {
+          "command": "npx tsc --noEmit",
+          "class": "build",
+          "action": "allow",
+          "ts": 1789243467210
+        },
+        {
+          "command": "python cursor-inbox-verify-912.py",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244968476
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244969744
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244971370
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244972486
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244973554
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244974608
+        },
+        {
+          "command": "$before = Join-Path $env:TEMP 'adria-before.json'\n$after = Join-Path $env:TEMP 'adria-after.json'\nSet-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii\nSet-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii\nWrite-Output '--- before ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\"\nWrite-Output ''\nWrite-Output '--- after ---'\ncurl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\"\nWrite-Output ''\nWrite-Output '--- snapshot ---'\ncurl.exe -sS http://127.0.0.1:7777/api/groups\nWrite-Output ''\nWrite-Output '--- logs ---'\ncurl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244975500
+        },
+        {
+          "command": "head -n 10 *.txt",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789244981242
         }
       ]
     }

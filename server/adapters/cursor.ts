@@ -22,6 +22,10 @@ export const CursorHookSchema = z
     tool_use_id: z.string().optional(),
     tool_input: z.union([ToolInputSchema, z.string()]).optional(),
     hook_event_name: z.string().optional(),
+    hookEventName: z.string().optional(),
+    output: z.string().optional(),
+    duration: z.number().optional(),
+    exit_code: z.union([z.number(), z.string()]).optional(),
   })
   .passthrough()
 
@@ -95,4 +99,14 @@ export function toResponse(action: Action, reason: string): object {
       permissionDecisionReason: reason,
     },
   }
+}
+
+const AFTER_HOOKS = new Set(['afterShellExecution', 'postToolUse', 'afterMCPExecution'])
+const BEFORE_HOOKS = new Set(['beforeShellExecution', 'preToolUse', 'PreToolUse', 'beforeMCPExecution'])
+
+export function isAfterHook(body: CursorHookBody): boolean {
+  const name = body.hook_event_name ?? body.hookEventName ?? ''
+  if (BEFORE_HOOKS.has(name)) return false
+  if (AFTER_HOOKS.has(name)) return true
+  return typeof body.duration === 'number' || typeof body.output === 'string' || body.exit_code != null
 }

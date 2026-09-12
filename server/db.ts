@@ -33,6 +33,11 @@ db.exec(`
     hits INTEGER,
     createdAt INTEGER
   );
+
+  CREATE INDEX IF NOT EXISTS interrupts_ts ON interrupts(ts);
+  CREATE INDEX IF NOT EXISTS interrupts_state ON interrupts(state);
+  CREATE INDEX IF NOT EXISTS interrupts_decidedBy ON interrupts(decidedBy);
+  CREATE INDEX IF NOT EXISTS interrupts_host ON interrupts(host);
 `)
 
 export { db }

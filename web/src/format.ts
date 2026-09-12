@@ -16,6 +16,13 @@ export function formatAgo(ts: number, now: number): string {
   return `${h}h ${m % 60}m ago`
 }
 
+export function formatHost(host: string): string {
+  if (host === 'claude-code') return 'Claude Code'
+  if (host === 'cursor') return 'Cursor'
+  if (host === 'mcp') return 'MCP'
+  return host
+}
+
 export function formatPct(autonomy: number): number {
   return Math.round(autonomy * 100)
 }

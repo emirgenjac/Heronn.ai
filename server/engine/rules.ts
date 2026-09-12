@@ -87,3 +87,22 @@ export function addRule(
   persistRule(rule)
   return rule
 }
+
+export function deleteRule(id: string): boolean {
+  for (const [key, rule] of repoRules) {
+    if (rule.id === id) {
+      repoRules.delete(key)
+      db.prepare(`DELETE FROM rules WHERE id = ?`).run(id)
+      return true
+    }
+  }
+  for (const [key, rule] of globalRules) {
+    if (rule.id === id) {
+      globalRules.delete(key)
+      db.prepare(`DELETE FROM rules WHERE id = ?`).run(id)
+      return true
+    }
+  }
+  const info = db.prepare(`DELETE FROM rules WHERE id = ?`).run(id)
+  return info.changes > 0
+}

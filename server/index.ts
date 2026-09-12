@@ -1,23 +1,67 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import express from 'express'
+import { z } from 'zod'
 import { DecisionSchema, InterruptSchema } from '../shared/types.ts'
 import { ClaudeCodeHookSchema, toInterrupt, toResponse } from './adapters/claudeCode.ts'
 import {
   CursorHookSchema,
+  isAfterHook,
   toInterrupt as cursorToInterrupt,
   toResponse as cursorToResponse,
 } from './adapters/cursor.ts'
 import './db.ts'
-import { addRule } from './engine/index.ts'
+import { addRule, canonicalise, deleteRule, listRules } from './engine/index.ts'
 import { classifyCommand } from './policy/classifyCmd.ts'
 import { evaluateCommand } from './policy/evaluate.ts'
-import { loadPolicies, recordAllow } from './policy/store.ts'
+import { forgetAllow, loadPolicies, recordAllow, recordDeny } from './policy/store.ts'
 import { handleInterrupt } from './pipeline.ts'
 import { getCursorHookDiag, noteCursorHook } from './hookDiag.ts'
 import { addSseClient, broadcast, removeSseClient } from './sse.ts'
-import { getSnapshot, loadInterruptsByIds, markDecided } from './snapshot.ts'
-import { settle } from './waiters.ts'
+import {
+  expireOrphanPending,
+  getSnapshot,
+  latestInterruptForCommand,
+  loadInterruptsByIds,
+  markDecided,
+  queryLogs,
+  recordHostAllow,
+} from './snapshot.ts'
+import { onParkExpire, settle } from './waiters.ts'
+
+const PolicyOpSchema = z.object({
+  op: z.enum(['allow', 'deny', 'forget']),
+  scope: z.enum(['repo', 'global']),
+  repo: z.string().optional(),
+  command: z.string().optional(),
+  class: z.string().optional(),
+  ruleId: z.string().optional(),
+  prefix: z.string().optional(),
+  fingerprint: z.string().optional(),
+})
+
+const LOG_BY = new Set(['blacklist', 'policy', 'rule', 'web', 'host', 'timeout', 'orphan'])
+const LOG_ACTION = new Set(['allow', 'deny', 'ask'])
+const LOG_HOST = new Set(['claude-code', 'cursor', 'mcp'])
+
+function queryString(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) return value[0].trim()
+  return undefined
+}
+
+function queryNumber(value: unknown): number | undefined {
+  const raw = queryString(value)
+  if (!raw) return undefined
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : undefined
+}
+
+onParkExpire((id) => {
+  markDecided([id], 'ask', 'timeout', Date.now())
+  broadcast()
+})
+expireOrphanPending()
 
 const app = express()
 app.use(express.json())
@@ -39,6 +83,104 @@ app.get('/api/diag', (_req, res) => {
 
 app.get('/api/groups', (_req, res) => {
   res.json(getSnapshot())
+})
+
+app.get('/api/policy', (_req, res) => {
+  const policies = loadPolicies()
+  res.json({
+    machine: policies.machine,
+    projects: policies.projects,
+    rules: listRules(),
+  })
+})
+
+app.post('/api/policy', (req, res) => {
+  const parsed = PolicyOpSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: 'invalid policy op' })
+    return
+  }
+  const body = parsed.data
+  const command = body.command?.trim()
+  const row = command ? latestInterruptForCommand(command) : null
+  const repo = body.repo?.trim() || row?.repo || ''
+  const fingerprint = body.fingerprint?.trim() || row?.fingerprint || ''
+  const destructive = row?.destructive === 1
+
+  if (body.op === 'allow') {
+    if (!command) {
+      res.status(400).json({ ok: false, error: 'command required' })
+      return
+    }
+    if (body.scope === 'repo' && !repo) {
+      res.status(400).json({ ok: false, error: 'repo required' })
+      return
+    }
+    const cls = classifyCommand(command, loadPolicies().classMap)
+    recordAllow(repo, command, cls, body.scope)
+    if (fingerprint && !destructive) {
+      addRule(fingerprint, body.scope === 'repo' ? repo : null, body.scope, 'allow')
+    }
+    broadcast()
+    res.json({ ok: true })
+    return
+  }
+
+  if (body.op === 'deny') {
+    if (!command && !fingerprint) {
+      res.status(400).json({ ok: false, error: 'command required' })
+      return
+    }
+    if (command) {
+      const cls = classifyCommand(command, loadPolicies().classMap)
+      recordDeny(repo, command, cls, body.scope)
+    }
+    if (fingerprint) {
+      addRule(fingerprint, body.scope === 'repo' ? repo || null : null, body.scope, 'deny')
+    }
+    broadcast()
+    res.json({ ok: true })
+    return
+  }
+
+  if (body.ruleId) deleteRule(body.ruleId)
+  forgetAllow({
+    scope: body.scope,
+    repo: repo || undefined,
+    command,
+    class: body.class,
+    prefix: body.prefix,
+  })
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.get('/api/logs', (req, res) => {
+  const decidedBy = queryString(req.query.decidedBy)
+  const action = queryString(req.query.action)
+  const host = queryString(req.query.host)
+  if (decidedBy && !LOG_BY.has(decidedBy)) {
+    res.status(400).json({ ok: false, error: 'invalid decidedBy' })
+    return
+  }
+  if (action && !LOG_ACTION.has(action)) {
+    res.status(400).json({ ok: false, error: 'invalid action' })
+    return
+  }
+  if (host && !LOG_HOST.has(host)) {
+    res.status(400).json({ ok: false, error: 'invalid host' })
+    return
+  }
+  const rows = queryLogs({
+    q: queryString(req.query.q),
+    decidedBy,
+    action,
+    host,
+    from: queryNumber(req.query.from),
+    to: queryNumber(req.query.to),
+    limit: queryNumber(req.query.limit),
+  })
+  res.json({ rows })
 })
 
 app.get('/api/stream', (req, res) => {
@@ -133,7 +275,12 @@ app.post('/hook/claude-code', async (req, res) => {
     )
     req.setTimeout(0)
     res.setTimeout(0)
-    const action = await handleInterrupt(interrupt)
+    if (req.query.hold === '1') {
+      void evaluateCommand(interrupt, { hold: true })
+      res.json(toResponse('ask', 'parked'))
+      return
+    }
+    const action = await evaluateCommand(interrupt)
     res.json(toResponse(action, `decision: ${action}`))
   } catch (err) {
     console.log(`hook claude-code error=${err instanceof Error ? err.message : 'unknown'}`)
@@ -153,6 +300,18 @@ app.post('/hook/cursor', async (req, res) => {
       res.json(cursorToResponse('ask', 'unparseable hook body'))
       return
     }
+    if (isAfterHook(parsed.data)) {
+      const after = cursorToInterrupt(parsed.data)
+      if (after) {
+        const canon = { ...after, ...canonicalise(after) }
+        recordHostAllow(canon)
+        broadcast()
+        noteCursorHook(`after-allow ${canon.detail}`)
+        console.log(`hook cursor after-allow cmd=${canon.detail}`)
+      }
+      res.json({})
+      return
+    }
     const interrupt = cursorToInterrupt(parsed.data)
     if (!interrupt) {
       noteCursorHook('missing command')
@@ -166,6 +325,11 @@ app.post('/hook/cursor', async (req, res) => {
     )
     req.setTimeout(0)
     res.setTimeout(0)
+    if (req.query.hold === '1') {
+      void evaluateCommand(interrupt, { hold: true })
+      res.json(cursorToResponse('ask', 'parked'))
+      return
+    }
     const action = await evaluateCommand(interrupt)
     res.json(cursorToResponse(action, `decision: ${action}`))
   } catch (err) {

@@ -4,7 +4,7 @@ import { insertInterrupt } from './snapshot.ts'
 import { broadcast } from './sse.ts'
 import { park } from './waiters.ts'
 
-export function handleInterrupt(i: Interrupt): Promise<Action> {
+export function handleInterrupt(i: Interrupt, opts?: { hold?: boolean }): Promise<Action> {
   const interrupt: Interrupt = i.fingerprint ? i : { ...i, ...canonicalise(i) }
   const rule = match(interrupt.fingerprint, interrupt.repo)
 
@@ -16,7 +16,13 @@ export function handleInterrupt(i: Interrupt): Promise<Action> {
     return Promise.resolve(rule.action)
   }
 
-  insertInterrupt(interrupt, 'pending', null, null, null)
+  if (opts?.hold) {
+    insertInterrupt(interrupt, 'pending', null, null, null)
+    broadcast()
+    return park(interrupt.id)
+  }
+
+  insertInterrupt(interrupt, 'decided', 'ask', 'host', Date.now())
   broadcast()
-  return park(interrupt.id)
+  return Promise.resolve('ask')
 }

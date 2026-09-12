@@ -17,7 +17,7 @@ function persistAuto(interrupt: Interrupt, action: 'allow' | 'deny', by: string)
   })
 }
 
-export async function evaluateCommand(interrupt: Interrupt): Promise<Action> {
+export async function evaluateCommand(interrupt: Interrupt, opts?: { hold?: boolean }): Promise<Action> {
   const command = typeof interrupt.args.command === 'string' ? interrupt.args.command : ''
 
   if (command && isPrefixBlacklisted(command)) {
@@ -40,5 +40,5 @@ export async function evaluateCommand(interrupt: Interrupt): Promise<Action> {
     }
   }
 
-  return handleInterrupt(canon)
+  return handleInterrupt(canon, opts)
 }
