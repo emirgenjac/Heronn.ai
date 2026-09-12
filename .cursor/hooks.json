@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/relay.mjs",
+        "timeout": 540,
+        "failClosed": true
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "node .cursor/hooks/relay.mjs",
+        "timeout": 540,
+        "matcher": "Shell"
+      }
+    ]
+  }
+}

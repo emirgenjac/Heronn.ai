@@ -3,8 +3,16 @@ import { join } from 'node:path'
 import express from 'express'
 import { DecisionSchema, InterruptSchema } from '../shared/types.ts'
 import { ClaudeCodeHookSchema, toInterrupt, toResponse } from './adapters/claudeCode.ts'
+import {
+  CursorHookSchema,
+  toInterrupt as cursorToInterrupt,
+  toResponse as cursorToResponse,
+} from './adapters/cursor.ts'
 import './db.ts'
-import { addRule } from './engineStub.ts'
+import { addRule } from './engine/index.ts'
+import { classifyCommand } from './policy/classifyCmd.ts'
+import { evaluateCommand } from './policy/evaluate.ts'
+import { loadPolicies, recordAllow } from './policy/store.ts'
 import { handleInterrupt } from './pipeline.ts'
 import { addSseClient, broadcast, removeSseClient } from './sse.ts'
 import { getSnapshot, loadInterruptsByIds, markDecided } from './snapshot.ts'
@@ -54,10 +62,23 @@ app.post('/api/decide', (req, res) => {
     if (first) {
       addRule(
         first.fingerprint,
-        decision.scope,
         decision.scope === 'repo' ? first.repo : null,
+        decision.scope,
         decision.action,
       )
+      if (decision.action === 'allow') {
+        let command = ''
+        try {
+          const args = JSON.parse(first.args) as { command?: unknown }
+          if (typeof args.command === 'string') command = args.command
+        } catch {
+          /* ignore */
+        }
+        if (command) {
+          const cls = classifyCommand(command, loadPolicies().classMap)
+          recordAllow(first.repo, command, cls)
+        }
+      }
     }
   }
   broadcast()
@@ -77,7 +98,6 @@ app.post('/api/replay', async (req, res) => {
       const parsed = InterruptSchema.safeParse(JSON.parse(line))
       if (!parsed.success) continue
       void handleInterrupt(parsed.data)
-      count += 1
     } catch {
       continue
     }
@@ -111,7 +131,42 @@ app.post('/hook/claude-code', async (req, res) => {
   }
 })
 
+app.post('/hook/cursor', async (req, res) => {
+  const started = Date.now()
+  try {
+    const parsed = CursorHookSchema.safeParse(req.body)
+    if (!parsed.success) {
+      console.log(`hook cursor unparseable elapsed=${Date.now() - started}ms`)
+      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      return
+    }
+    const interrupt = cursorToInterrupt(parsed.data)
+    if (!interrupt) {
+      console.log(`hook cursor missing command/cwd elapsed=${Date.now() - started}ms`)
+      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      return
+    }
+    console.log(
+      `hook cursor tool=${interrupt.tool} cwd=${interrupt.cwd} session=${interrupt.sessionId}`,
+    )
+    req.setTimeout(0)
+    res.setTimeout(0)
+    const action = await evaluateCommand(interrupt)
+    res.json(cursorToResponse(action, `decision: ${action}`))
+  } catch (err) {
+    console.log(`hook cursor error=${err instanceof Error ? err.message : 'unknown'}`)
+    res.json(cursorToResponse('ask', 'hook error'))
+  } finally {
+    console.log(`hook cursor elapsed=${Date.now() - started}ms`)
+  }
+})
+
 app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.path === '/hook/cursor') {
+    console.log('hook cursor unparseable')
+    res.json(cursorToResponse('ask', 'unparseable hook body'))
+    return
+  }
   if (req.path.startsWith('/hook/')) {
     console.log('hook claude-code unparseable')
     res.json(toResponse('ask', 'unparseable hook body'))

@@ -1,6 +1,6 @@
 import type { Action, Interrupt } from '../shared/types.ts'
-import { canonicalise, match } from './engineStub.ts'
-import { bumpRuleHits, insertInterrupt } from './snapshot.ts'
+import { canonicalise, match } from './engine/index.ts'
+import { insertInterrupt } from './snapshot.ts'
 import { broadcast } from './sse.ts'
 import { park } from './waiters.ts'
 
@@ -12,7 +12,6 @@ export function handleInterrupt(i: Interrupt): Promise<Action> {
   if (rule) {
     queueMicrotask(() => {
       insertInterrupt(interrupt, 'auto', rule.action, 'rule', Date.now())
-      bumpRuleHits(rule.id)
       broadcast()
     })
     return Promise.resolve(rule.action)
