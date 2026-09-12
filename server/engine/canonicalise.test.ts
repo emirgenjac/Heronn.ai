@@ -46,6 +46,24 @@ function write(path: string, extra: Partial<Interrupt> = {}): Interrupt {
   }
 }
 
+function claudeWrite(filePath: string, extra: Partial<Interrupt> = {}): Interrupt {
+  return {
+    id: 't',
+    ts: 0,
+    host: 'claude-code',
+    sessionId: 's',
+    cwd,
+    repo,
+    tool: 'Write',
+    args: { file_path: filePath, content: 'x' },
+    fingerprint: '',
+    title: '',
+    detail: '',
+    destructive: false,
+    ...extra,
+  }
+}
+
 function fp(command: string): string {
   return canonicalise(bash(command)).fingerprint
 }
@@ -68,6 +86,16 @@ test('in-repo writes collide; outside write does not', () => {
   const a = canonicalise(write('server/index.ts'))
   const b = canonicalise(write('web/src/App.tsx'))
   const c = canonicalise(write('~/.config/git/config', { cwd: '/home/dev' }))
+  assert.equal(a.fingerprint, b.fingerprint)
+  assert.notEqual(a.fingerprint, c.fingerprint)
+  assert.equal(a.destructive, false)
+  assert.equal(c.destructive, true)
+})
+
+test('claude Write file_path in-repo vs outside do not share a fingerprint', () => {
+  const a = canonicalise(claudeWrite('server/index.ts'))
+  const b = canonicalise(claudeWrite('web/src/App.tsx'))
+  const c = canonicalise(claudeWrite('~/.ssh/id_rsa', { cwd: '/home/dev' }))
   assert.equal(a.fingerprint, b.fingerprint)
   assert.notEqual(a.fingerprint, c.fingerprint)
   assert.equal(a.destructive, false)

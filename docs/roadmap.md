@@ -9,7 +9,7 @@ For the spoken 2-minute version see [pitch.md](./pitch.md). For how the current 
 ## Now (shipped in this repo)
 
 - Local Express daemon on `:7777`, SQLite WAL, frozen `shared/types.ts`.
-- Cursor `beforeShellExecution` / `preToolUse` and Claude Code `PreToolUse` hooks.
+- Cursor `beforeShellExecution` / `preToolUse` and Claude Code `PreToolUse` hooks (both run `evaluateCommand`: blacklist → class allow → park).
 - Fail-closed parse path (`ask`, never auto-allow on garbage).
 - Global blacklist (prefixes + bins + engine destructive checks).
 - Command classes + project JSON allowlist (`allowClasses` / `allowPrefixes` / `decisions`).
@@ -25,7 +25,6 @@ These close the demo-to-daily-driver gap.
 
 | Item | Notes |
 | --- | --- |
-| Run Claude through `evaluateCommand` | Cursor already has blacklist → class → park. Claude still skips straight to fingerprint/park. |
 | MCP host adapter | `host: 'mcp'` is on the type union; no `/hook/mcp` yet. |
 | Spoken prompt to expand policies | Natural language → `allowClasses` / prefixes / blacklist. Still never auto-allow `git-destructive`, `unknown`, or blacklisted. |
 | Import / export policy packs by `id` | JSON round-trip of blacklist + classMap + project allows. Merge by id; do not clobber a different pack that shares a prefix. |

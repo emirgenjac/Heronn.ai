@@ -133,7 +133,7 @@ app.post('/hook/claude-code', async (req, res) => {
     )
     req.setTimeout(0)
     res.setTimeout(0)
-    const action = await handleInterrupt(interrupt)
+    const action = await evaluateCommand(interrupt)
     res.json(toResponse(action, `decision: ${action}`))
   } catch (err) {
     console.log(`hook claude-code error=${err instanceof Error ? err.message : 'unknown'}`)
