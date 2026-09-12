@@ -22,9 +22,15 @@ export type PoliciesFile = {
   projects: Record<string, ProjectPolicy>
 }
 
+export type BlacklistIndex = {
+  prefixes: string[]
+  bins: Set<string>
+}
+
 const PATH = join(import.meta.dirname, 'policies.json')
 
 let cached: PoliciesFile | null = null
+let cachedIndex: BlacklistIndex | null = null
 
 const pending: Array<() => void> = []
 let draining = false
@@ -57,8 +63,19 @@ export function loadPolicies(): PoliciesFile {
   return cached
 }
 
+export function loadBlacklistIndex(): BlacklistIndex {
+  if (cachedIndex) return cachedIndex
+  const { blacklist } = loadPolicies()
+  cachedIndex = {
+    prefixes: blacklist.prefixes.map(normalizeCmd).filter(Boolean).sort((a, b) => b.length - a.length),
+    bins: new Set(blacklist.bins.map((b) => b.toLowerCase())),
+  }
+  return cachedIndex
+}
+
 function savePolicies(policies: PoliciesFile): void {
   cached = policies
+  cachedIndex = null
   writeFileSync(PATH, `${JSON.stringify(policies, null, 2)}\n`)
 }
 

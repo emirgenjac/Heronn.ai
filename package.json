@@ -10,7 +10,8 @@
     "loadgen:setup": "tsx loadgen/setup.ts",
     "loadgen:capture": "tsx loadgen/capture.ts",
     "loadgen:baseline": "tsx loadgen/baseline.ts",
-    "loadgen:stats": "tsx loadgen/stats.ts"
+    "loadgen:stats": "tsx loadgen/stats.ts",
+    "test:blacklist": "tsx --test server/policy/blacklist.test.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
