@@ -14,5 +14,5 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["server", "shared", "web"]
+  "include": ["server", "shared", "web", "loadgen"]
 }

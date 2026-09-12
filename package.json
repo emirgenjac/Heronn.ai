@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "tsx watch server/index.ts",
-    "dev:web": "vite --config web/vite.config.ts"
+    "dev:web": "vite --config web/vite.config.ts",
+    "loadgen": "tsx loadgen/run.ts",
+    "loadgen:setup": "tsx loadgen/setup.ts",
+    "loadgen:capture": "tsx loadgen/capture.ts",
+    "loadgen:baseline": "tsx loadgen/baseline.ts",
+    "loadgen:stats": "tsx loadgen/stats.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
