@@ -20,6 +20,18 @@ npm run dev
 - Server: http://localhost:7777 (`GET /api/health` → `{ "ok": true }`)
 - Web: http://localhost:5173 (proxies `/api` to the server)
 
+## Colleague checklist (Cursor execs not showing)
+
+Refreshing http://localhost:5173 cannot invent cards. The UI only lists commands that already `POST`ed to `/hook/cursor`.
+
+VS Code can run the servers. It cannot fire [`.cursor/hooks.json`](.cursor/hooks.json).
+
+1. **File → Open Folder** on this repo root in **Cursor** (the folder that contains `.cursor/hooks.json`). Chat with the Agent **in that window**, not a Cloud Agent and not a different project.
+2. `npm run dev` (VS Code is fine for this). Footer on http://localhost:5173 must say **LIVE**, not MOCK.
+3. `GET http://127.0.0.1:7777/api/health` → `{ "ok": true }`. Header should show `hooks never` until the Agent runs a shell command, then `hooks Xs ago`. `GET /api/diag` `cursorHookHits` must increase.
+4. Ask the Agent for an **unknown** command (`python evil.py`), not `npm install` (that class may already auto-allow).
+5. Cursor Settings → Hooks. Reload the window after git pull. If the hook cannot find `node` or the daemon, `failClosed` **blocks the shell** and the UI stays empty — check the **Hooks** output channel for `relay failed`.
+
 ## Claude Code PreToolUse hook
 
 Point a `PreToolUse` command hook at the daemon. Pipe stdin JSON to the server and set a hook timeout of at least 540s so a parked permission request can wait for a human:

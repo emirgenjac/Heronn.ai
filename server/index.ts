@@ -14,6 +14,7 @@ import { classifyCommand } from './policy/classifyCmd.ts'
 import { evaluateCommand } from './policy/evaluate.ts'
 import { loadPolicies, recordAllow } from './policy/store.ts'
 import { handleInterrupt } from './pipeline.ts'
+import { getCursorHookDiag, noteCursorHook } from './hookDiag.ts'
 import { addSseClient, broadcast, removeSseClient } from './sse.ts'
 import { getSnapshot, loadInterruptsByIds, markDecided } from './snapshot.ts'
 import { settle } from './waiters.ts'
@@ -23,6 +24,17 @@ app.use(express.json())
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
+})
+
+app.get('/api/diag', (_req, res) => {
+  const snap = getSnapshot()
+  res.json({
+    ok: true,
+    liveHint:
+      'Cursor Agent must run in this repo folder. VS Code can host npm run dev but cannot fire .cursor/hooks.json. UI footer must say LIVE.',
+    pending: snap.stats.blocked,
+    ...getCursorHookDiag(),
+  })
 })
 
 app.get('/api/groups', (_req, res) => {
@@ -136,16 +148,19 @@ app.post('/hook/cursor', async (req, res) => {
   try {
     const parsed = CursorHookSchema.safeParse(req.body)
     if (!parsed.success) {
+      noteCursorHook('unparseable hook body')
       console.log(`hook cursor unparseable elapsed=${Date.now() - started}ms`)
       res.json(cursorToResponse('ask', 'unparseable hook body'))
       return
     }
     const interrupt = cursorToInterrupt(parsed.data)
     if (!interrupt) {
-      console.log(`hook cursor missing command/cwd elapsed=${Date.now() - started}ms`)
+      noteCursorHook('missing command')
+      console.log(`hook cursor missing command elapsed=${Date.now() - started}ms`)
       res.json(cursorToResponse('ask', 'unparseable hook body'))
       return
     }
+    noteCursorHook(`${interrupt.tool} ${interrupt.cwd}`)
     console.log(
       `hook cursor tool=${interrupt.tool} cwd=${interrupt.cwd} session=${interrupt.sessionId}`,
     )
@@ -154,6 +169,7 @@ app.post('/hook/cursor', async (req, res) => {
     const action = await evaluateCommand(interrupt)
     res.json(cursorToResponse(action, `decision: ${action}`))
   } catch (err) {
+    noteCursorHook(err instanceof Error ? err.message : 'hook error')
     console.log(`hook cursor error=${err instanceof Error ? err.message : 'unknown'}`)
     res.json(cursorToResponse('ask', 'hook error'))
   } finally {
@@ -163,6 +179,7 @@ app.post('/hook/cursor', async (req, res) => {
 
 app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (req.path === '/hook/cursor') {
+    noteCursorHook('unparseable hook body')
     console.log('hook cursor unparseable')
     res.json(cursorToResponse('ask', 'unparseable hook body'))
     return

@@ -53,8 +53,8 @@ export function extractCommand(body: CursorHookBody): { command: string; cwd: st
   const cwd =
     body.cwd?.trim() ||
     (body.tool_input && typeof body.tool_input === 'object' && body.tool_input.working_directory) ||
-    ''
-  if (!command || !cwd) return null
+    process.cwd()
+  if (!command) return null
   return {
     command,
     cwd,

@@ -12,6 +12,8 @@ try {
   const text = await res.text()
   process.stdout.write(text)
   process.exit(res.ok ? 0 : 2)
-} catch {
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err)
+  console.error(`relay failed: ${message} (is the daemon on http://127.0.0.1:7777?)`)
   process.exit(1)
 }

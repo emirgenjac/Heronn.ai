@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Action, Group, Stats } from '../../shared/types.ts'
-import { decide, subscribe } from './api.ts'
+import { decide, subscribe, subscribeDiag, type Diag } from './api.ts'
 import { formatAgo, formatClock, formatPct } from './format.ts'
 import { LIVE } from './live.ts'
 import { repoFor } from './mock.ts'
@@ -55,6 +55,7 @@ export function App() {
   const [machineAlways, setMachineAlways] = useState<Set<string>>(() => new Set())
   const [toasts, setToasts] = useState<Toast[]>([])
   const [flash, setFlash] = useState(false)
+  const [diag, setDiag] = useState<Diag | null>(null)
   const prevAutonomy = useRef(stats.autonomy)
   const groupsRef = useRef(groups)
   const selectedRef = useRef(selected)
@@ -71,6 +72,10 @@ export function App() {
       setStats(snap.stats)
       setReceivedAt(Date.now())
     })
+  }, [])
+
+  useEffect(() => {
+    return subscribeDiag(setDiag)
   }, [])
 
   useEffect(() => {
@@ -200,7 +205,9 @@ export function App() {
     }
   }, [])
 
-  const now = useMemo(() => Date.now(), [oldestLive])
+  const now = Date.now()
+  const hooksLabel =
+    LIVE && diag?.lastCursorHookAt ? formatAgo(diag.lastCursorHookAt, now) : LIVE ? 'never' : 'mock'
 
   return (
     <div className="app">
@@ -212,6 +219,10 @@ export function App() {
           </span>
           <span className="header-muted">·</span>
           <span className="nums">longest {formatClock(oldestLive)}</span>
+          <span className="header-muted">·</span>
+          <span className="nums" title={diag?.lastCursorLog ?? undefined}>
+            hooks {hooksLabel}
+          </span>
         </div>
         <div className="header-right">
           <span className={`autonomy nums ${flash ? 'flash' : ''}`}>
@@ -226,6 +237,12 @@ export function App() {
         <div className="empty">
           <h1>Nothing needs you.</h1>
           <p className="empty-count">{stats.autoResolved} decisions auto-resolved in the last hour.</p>
+          {LIVE && diag && diag.cursorHookHits === 0 ? (
+            <p className="empty-count">
+              No Cursor hooks have hit this daemon. Open this repo in Cursor (not VS Code) and ask the Agent to run a
+              shell command.
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="list">

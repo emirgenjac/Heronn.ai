@@ -4,6 +4,15 @@ import { decideMock, subscribeMock } from './mock.ts'
 
 export type Snapshot = { groups: Group[]; stats: Stats }
 
+export type Diag = {
+  ok: boolean
+  liveHint: string
+  pending: number
+  lastCursorHookAt: number | null
+  cursorHookHits: number
+  lastCursorLog: string
+}
+
 export function subscribe(onData: (snap: Snapshot) => void): () => void {
   if (!LIVE) return subscribeMock(onData)
 
@@ -41,4 +50,24 @@ export async function decide(body: Decision): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+export function subscribeDiag(onData: (diag: Diag) => void): () => void {
+  if (!LIVE) return () => {}
+
+  let stopped = false
+  const pull = () => {
+    void fetch('/api/diag')
+      .then((res) => res.json())
+      .then((data: Diag) => {
+        if (!stopped) onData(data)
+      })
+      .catch(() => {})
+  }
+  pull()
+  const timer = window.setInterval(pull, 1000)
+  return () => {
+    stopped = true
+    window.clearInterval(timer)
+  }
 }
