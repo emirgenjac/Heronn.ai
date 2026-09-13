@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { classifyCommand, neverAutoAllow, stablePrefix, type CommandClass } from './classifyCmd.ts'
 import { longestPrefix, normalizeCmd } from './prefix.ts'
@@ -34,6 +34,7 @@ const PATH = join(import.meta.dirname, 'policies.json')
 
 let cached: PoliciesFile | null = null
 let cachedIndex: BlacklistIndex | null = null
+let cachedMtime = 0
 
 const pending: Array<() => void> = []
 let draining = false
@@ -73,7 +74,16 @@ function readPolicies(): PoliciesFile {
 }
 
 export function loadPolicies(): PoliciesFile {
-  cached ??= readPolicies()
+  try {
+    const mtime = statSync(PATH).mtimeMs
+    if (!cached || mtime !== cachedMtime) {
+      cached = readPolicies()
+      cachedIndex = null
+      cachedMtime = mtime
+    }
+  } catch {
+    cached ??= readPolicies()
+  }
   return cached
 }
 

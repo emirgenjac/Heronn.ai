@@ -12,10 +12,11 @@
  * Parked cases use ?hold=1 so cards show at http://localhost:5173
  * UI cards are posted 1.5s apart unless --fast.
  *
- * Auto cases assume this repo's policies.json: class dependency + build,
- * prefix npm install. If you tick "this project" or "this PC" and Allow on a
- * parked card, the next run treats that case as auto-allow. Tracked in
- * test/issues-learned.json (not prod policies.json).
+ * Run 1: AUTO cases allow from this repo's policies.json (class dependency +
+ * build, prefix npm install). PARK cases card. Allow with "this project"
+ * (on by default for non-destructive cards) or "this PC".
+ * Run 2: those allowed park cases auto-allow. Blacklist still cards.
+ * Tracked in test/issues-learned.json (not prod policies.json).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

@@ -80,6 +80,7 @@ export function useQueue(keysPaused: boolean) {
   const alwaysRef = useRef(always)
   const machineRef = useRef(machineAlways)
   const dismissedRef = useRef(new Set<string>())
+  const optedOffRef = useRef(new Set<string>())
   const keysPausedRef = useRef(keysPaused)
   const onDecideRef = useRef<(group: Group, action: Action) => void>(() => {})
   const toggleAlwaysRef = useRef<(group: Group) => void>(() => {})
@@ -102,6 +103,25 @@ export function useQueue(keysPaused: boolean) {
         oldestMs: blocked === 0 ? 0 : snap.stats.oldestMs,
       })
       setReceivedAt(Date.now())
+
+      const alwaysNext = new Set(alwaysRef.current)
+      let alwaysChanged = false
+      for (const group of next) {
+        if (
+          group.destructive ||
+          optedOffRef.current.has(group.fingerprint) ||
+          machineRef.current.has(group.fingerprint) ||
+          alwaysNext.has(group.fingerprint)
+        ) {
+          continue
+        }
+        alwaysNext.add(group.fingerprint)
+        alwaysChanged = true
+      }
+      if (alwaysChanged) {
+        alwaysRef.current = alwaysNext
+        setAlways(alwaysNext)
+      }
     })
   }, [])
 
@@ -180,9 +200,12 @@ export function useQueue(keysPaused: boolean) {
   const toggleAlways = useCallback((group: Group) => {
     if (group.destructive) return
     const next = new Set(alwaysRef.current)
-    if (next.has(group.fingerprint)) next.delete(group.fingerprint)
-    else {
+    if (next.has(group.fingerprint)) {
+      next.delete(group.fingerprint)
+      optedOffRef.current.add(group.fingerprint)
+    } else {
       next.add(group.fingerprint)
+      optedOffRef.current.delete(group.fingerprint)
       const machines = new Set(machineRef.current)
       machines.delete(group.fingerprint)
       machineRef.current = machines
@@ -195,9 +218,12 @@ export function useQueue(keysPaused: boolean) {
   const toggleMachine = useCallback((group: Group) => {
     if (group.destructive) return
     const next = new Set(machineRef.current)
-    if (next.has(group.fingerprint)) next.delete(group.fingerprint)
-    else {
+    if (next.has(group.fingerprint)) {
+      next.delete(group.fingerprint)
+      optedOffRef.current.add(group.fingerprint)
+    } else {
       next.add(group.fingerprint)
+      optedOffRef.current.delete(group.fingerprint)
       const repos = new Set(alwaysRef.current)
       repos.delete(group.fingerprint)
       alwaysRef.current = repos

@@ -42,33 +42,30 @@
     "Adria-Hack-AI-Project": {
       "allowClasses": [
         "dependency",
-        "build"
+        "build",
+        "git-write",
+        "fs-write",
+        "test",
+        "network"
       ],
       "allowPrefixes": [
         "npm install",
-        "npx tsc",
-        "python cursor-inbox-verify-912.py",
-        "$before = Join-Path $env:TEMP 'adria-before.json' $after = Join-Path $env:TEMP 'adria-after.json' Set-Content -Path $before -Value '{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\"}' -Encoding ascii Set-Content -Path $after -Value '{\"hook_event_name\":\"afterShellExecution\",\"command\":\"python cursor-inbox-verify-912.py\",\"cwd\":\"C:\\\\Users\\\\Faris\\\\Desktop\\\\Projects\\\\Adria-Hack-AI-Project\",\"output\":\"ok\",\"duration\":12}' -Encoding ascii Write-Output '--- before ---' curl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$before\" Write-Output '' Write-Output '--- after ---' curl.exe -sS -X POST http://127.0.0.1:7777/hook/cursor -H \"Content-Type: application/json\" --data-binary \"@$after\" Write-Output '' Write-Output '--- snapshot ---' curl.exe -sS http://127.0.0.1:7777/api/groups Write-Output '' Write-Output '--- logs ---' curl.exe -sS \"http://127.0.0.1:7777/api/logs?q=cursor-inbox-verify-912&limit=5\"",
-        "head -n 10 *.txt"
+        "git commit",
+        "git add",
+        "pytest tests/test_auth.py -k login --maxfail=1",
+        "mkdir",
+        "cargo test",
+        "python scripts/seed_users.py --env local --limit 25",
+        "curl",
+        "ffmpeg -i demo.mp4 -ss 00:00:03 -frames:v 1 tmp/frame.png",
+        "ffmpeg -i clip.mp4 -ss 00:00:03 -frames:v 1 tmp/thumb.png"
       ],
       "decisions": [
-        {
-          "command": "npm install foo",
-          "class": "dependency",
-          "action": "allow",
-          "ts": 1789222882994
-        },
         {
           "command": "npx tsc --noEmit",
           "class": "unknown",
           "action": "allow",
           "ts": 1789242222562
-        },
-        {
-          "command": "npx tsc --noEmit",
-          "class": "build",
-          "action": "allow",
-          "ts": 1789243467210
         },
         {
           "command": "python cursor-inbox-verify-912.py",
@@ -117,6 +114,66 @@
           "class": "unknown",
           "action": "allow",
           "ts": 1789244981242
+        },
+        {
+          "command": "curl.exe -sS http://127.0.0.1:7777/api/groups",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789294634778
+        },
+        {
+          "command": "git commit -m \"Add interrupt host marks\"",
+          "class": "git-write",
+          "action": "allow",
+          "ts": 1789295389987
+        },
+        {
+          "command": "git add web/src/App.tsx",
+          "class": "git-write",
+          "action": "allow",
+          "ts": 1789295390819
+        },
+        {
+          "command": "pytest tests/test_auth.py -k login --maxfail=1",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789295393402
+        },
+        {
+          "command": "mkdir -p tmp/agent-out",
+          "class": "fs-write",
+          "action": "allow",
+          "ts": 1789295394378
+        },
+        {
+          "command": "cargo test -p engine -- --nocapture",
+          "class": "test",
+          "action": "allow",
+          "ts": 1789295396280
+        },
+        {
+          "command": "python scripts/seed_users.py --env local --limit 25",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789295534961
+        },
+        {
+          "command": "curl https://api.github.com/rate_limit",
+          "class": "network",
+          "action": "allow",
+          "ts": 1789295535791
+        },
+        {
+          "command": "ffmpeg -i demo.mp4 -ss 00:00:03 -frames:v 1 tmp/frame.png",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789295536801
+        },
+        {
+          "command": "ffmpeg -i clip.mp4 -ss 00:00:03 -frames:v 1 tmp/thumb.png",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789295537565
         }
       ]
     }
