@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { fetchLogs, type LogRow } from '../api.ts'
-import { commandOfLog, formatAgo, formatHost } from '../format.ts'
+import { type LogRow } from '../api.ts'
+import { loadLogs, peekLogs, setLogsCache } from '../dataCache.ts'
+import { commandOfLog, formatAgo } from '../format.ts'
+import { HostMark } from './HostMark.tsx'
 import { LogDetails } from './LogDetails.tsx'
 import { Reveal } from './Reveal.tsx'
+import { SkeletonRows } from './SkeletonRows.tsx'
 
 type LogsViewProps = {
   onUseInPolicy: (command: string) => void
@@ -14,22 +17,26 @@ export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
   const [decidedBy, setDecidedBy] = useState('')
   const [action, setAction] = useState('')
   const [host, setHost] = useState('')
-  const [rows, setRows] = useState<LogRow[]>([])
+  const [rows, setRows] = useState<LogRow[]>(() => peekLogs() ?? [])
+  const [loaded, setLoaded] = useState(() => peekLogs() !== null)
   const [now, setNow] = useState(() => Date.now())
   const [expanded, setExpanded] = useState<string | null>(null)
 
   async function reload(next = { q, decidedBy, action, host }) {
     try {
-      const data = await fetchLogs({
+      const data = await loadLogs({
         q: next.q || undefined,
         decidedBy: next.decidedBy || undefined,
         action: next.action || undefined,
         host: next.host || undefined,
         limit: 100,
       })
+      if (!next.q && !next.decidedBy && !next.action && !next.host) setLogsCache(data)
       setRows(data)
+      setLoaded(true)
       setNow(Date.now())
     } catch {
+      setLoaded(true)
       onToast('Log query failed')
     }
   }
@@ -78,7 +85,9 @@ export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
           Query
         </button>
       </form>
-      {rows.length === 0 ? (
+      {!loaded ? (
+        <SkeletonRows />
+      ) : rows.length === 0 ? (
         <p className="empty-count">No log rows match.</p>
       ) : (
         <div className="list">
@@ -92,7 +101,7 @@ export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
               >
                 <div className="row-top">
                   <span className="title clip">{row.title || command}</span>
-                  <span className="chip kind">{formatHost(row.host)}</span>
+                  <HostMark host={row.host} />
                   {row.decision ? <span className="chip kind">{row.decision}</span> : null}
                   {row.destructive ? <span className="chip">DESTRUCTIVE</span> : null}
                 </div>

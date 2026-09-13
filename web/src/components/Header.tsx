@@ -1,41 +1,18 @@
-import { formatAgo, formatClock, formatPct } from '../format.ts'
-import type { Diag } from '../api.ts'
-import type { Stats } from '../../../shared/types.ts'
+import { StatusBar, type StatusBarProps } from './StatusBar.tsx'
 
 export type AppTab = 'queue' | 'policy' | 'logs'
 
-type HeaderProps = {
-  stats: Stats
-  oldestLive: number
-  autonomyShown: number
-  flash: boolean
-  diag: Diag | null
-  live: boolean
+type HeaderProps = StatusBarProps & {
   tab: AppTab
   onTab: (tab: AppTab) => void
   onUpgrade: () => void
 }
 
-export function Header({
-  stats,
-  oldestLive,
-  autonomyShown,
-  flash,
-  diag,
-  live,
-  tab,
-  onTab,
-  onUpgrade,
-}: HeaderProps) {
-  const blockedLabel = stats.blocked === 1 ? 'agent blocked' : 'agents blocked'
-  const now = Date.now()
-  const hooksLabel =
-    live && diag?.lastCursorHookAt ? formatAgo(diag.lastCursorHookAt, now) : live ? 'never' : 'mock'
-
+export function Header({ tab, onTab, onUpgrade, ...status }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-brand">
-        <div className="header-title-row">
+        <div className="header-bar">
           <a className="brand" href="/" aria-label="heronn">
             <span className="brand-logo-clip">
               <img src="/heronnLogo.png" alt="" />
@@ -61,24 +38,7 @@ export function Header({
             </button>
           </div>
         </div>
-        <div className="header-stats">
-          <span className={`pulse${stats.blocked === 0 ? ' off' : ''}`} aria-hidden="true" />
-          <span className="nums">
-            {stats.blocked} {blockedLabel}
-          </span>
-          <span className="header-muted">·</span>
-          <span className="nums">longest {formatClock(oldestLive)}</span>
-          <span className="header-muted">·</span>
-          <span className="nums" title={diag?.lastCursorLog ?? undefined}>
-            hooks {hooksLabel}
-          </span>
-          <span className="header-muted header-stat-break">·</span>
-          <span className={`autonomy nums ${flash ? 'flash' : ''}`}>
-            autonomy {formatPct(autonomyShown)}%
-          </span>
-          <span className="header-muted">·</span>
-          <span className="nums">{stats.autoResolved} auto-resolved</span>
-        </div>
+        <StatusBar {...status} />
       </div>
     </header>
   )

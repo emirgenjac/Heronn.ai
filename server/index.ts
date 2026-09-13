@@ -10,6 +10,11 @@ import {
   toInterrupt as cursorToInterrupt,
   toResponse as cursorToResponse,
 } from './adapters/cursor.ts'
+import {
+  McpHookSchema,
+  toInterrupt as mcpToInterrupt,
+  toResponse as mcpToResponse,
+} from './adapters/mcp.ts'
 import './db.ts'
 import { addRule, canonicalise, deleteRule, listRules } from './engine/index.ts'
 import { classifyCommand } from './policy/classifyCmd.ts'
@@ -290,6 +295,34 @@ app.post('/hook/claude-code', async (req, res) => {
   }
 })
 
+app.post('/hook/mcp', async (req, res) => {
+  const started = Date.now()
+  try {
+    const parsed = McpHookSchema.safeParse(req.body)
+    if (!parsed.success) {
+      console.log(`hook mcp unparseable elapsed=${Date.now() - started}ms`)
+      res.json(mcpToResponse('ask', 'unparseable hook body'))
+      return
+    }
+    const interrupt = mcpToInterrupt(parsed.data)
+    console.log(`hook mcp tool=${interrupt.tool} cwd=${interrupt.cwd} session=${interrupt.sessionId}`)
+    req.setTimeout(0)
+    res.setTimeout(0)
+    if (req.query.hold === '1') {
+      void evaluateCommand(interrupt, { hold: true })
+      res.json(mcpToResponse('ask', 'parked'))
+      return
+    }
+    const action = await evaluateCommand(interrupt)
+    res.json(mcpToResponse(action, `decision: ${action}`))
+  } catch (err) {
+    console.log(`hook mcp error=${err instanceof Error ? err.message : 'unknown'}`)
+    res.json(mcpToResponse('ask', 'hook error'))
+  } finally {
+    console.log(`hook mcp elapsed=${Date.now() - started}ms`)
+  }
+})
+
 app.post('/hook/cursor', async (req, res) => {
   const started = Date.now()
   try {
@@ -350,6 +383,11 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
     noteCursorHook('unparseable hook body')
     console.log('hook cursor unparseable')
     res.json(cursorToResponse('ask', 'unparseable hook body'))
+    return
+  }
+  if (req.path === '/hook/mcp') {
+    console.log('hook mcp unparseable')
+    res.json(mcpToResponse('ask', 'unparseable hook body'))
     return
   }
   if (req.path.startsWith('/hook/')) {

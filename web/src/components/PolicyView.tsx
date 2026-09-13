@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
+import { postPolicy, type LogRow, type PolicyDecision, type PolicyOp, type PolicySnapshot, type ScopedPolicy } from '../api.ts'
 import {
-  fetchLogs,
-  fetchPolicy,
-  postPolicy,
-  type LogRow,
-  type PolicyDecision,
-  type PolicyOp,
-  type PolicySnapshot,
-  type ScopedPolicy,
-} from '../api.ts'
+  loadCursorAllows,
+  loadLogs,
+  loadPolicy,
+  peekCursorAllows,
+  peekPolicy,
+  setCursorAllowsCache,
+  setPolicyCache,
+} from '../dataCache.ts'
 import { commandOfLog, formatStamp, shortLabel } from '../format.ts'
 import { LogDetails } from './LogDetails.tsx'
 import { DetailBlock, Kv, Reveal, type KvItem } from './Reveal.tsx'
+import { SkeletonRows } from './SkeletonRows.tsx'
 
 type PolicyViewProps = {
   search: string
@@ -85,9 +86,9 @@ function logRow(log: LogRow, command: string, section: PolicyRow['section'], met
 }
 
 export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
-  const [policy, setPolicy] = useState<PolicySnapshot | null>(null)
+  const [policy, setPolicy] = useState<PolicySnapshot | null>(() => peekPolicy())
   const [logs, setLogs] = useState<LogRow[]>([])
-  const [cursorAllows, setCursorAllows] = useState<LogRow[]>([])
+  const [cursorAllows, setCursorAllows] = useState<LogRow[]>(() => peekCursorAllows() ?? [])
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -95,15 +96,12 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
   async function reload() {
     const q = search.trim()
     const [nextPolicy, nextCursor, nextLogs] = await Promise.all([
-      fetchPolicy(),
-      fetchLogs({
-        decidedBy: 'host',
-        action: 'allow',
-        from: Date.now() - 30 * 60 * 1000,
-        limit: 40,
-      }),
-      q ? fetchLogs({ q, limit: 50 }) : Promise.resolve([]),
+      loadPolicy(),
+      loadCursorAllows(),
+      q ? loadLogs({ q, limit: 50 }) : Promise.resolve([]),
     ])
+    setPolicyCache(nextPolicy)
+    setCursorAllowsCache(nextCursor)
     setPolicy(nextPolicy)
     setCursorAllows(nextCursor)
     setLogs(nextLogs)
@@ -286,7 +284,7 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
         aria-label="Search policy"
       />
       {policy === null ? (
-        <p className="empty-count">Loading policy…</p>
+        <SkeletonRows />
       ) : rows.length === 0 ? (
         <p className="empty-count">No policy rows match.</p>
       ) : (

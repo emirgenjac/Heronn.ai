@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { Action, Group } from '../../../shared/types.ts'
 import type { QueueAgent } from '../api.ts'
 import { formatAgo, formatHost } from '../format.ts'
+import { DUR_EXPAND, EASE_APPLE, dur, gsap, useGSAP } from '../motion.ts'
+import { HostMark, HostMarks } from './HostMark.tsx'
 import { Reveal } from './Reveal.tsx'
 
 type InterruptCardProps = {
@@ -43,6 +45,7 @@ export function InterruptCard({
   const hostLabel = lead ? formatHost(lead.host) : 'Agent'
   const repoLabel = lead?.repo || repo
   const uniqueSessions = new Set(agents.map((a) => a.sessionId)).size
+  const hosts = agents.map((agent) => agent.host)
   const canExpand = cmdOverflows || cmdOpen || group.detail.includes('\n')
 
   useLayoutEffect(() => {
@@ -69,6 +72,53 @@ export function InterruptCard({
     }
   }, [cmdOpen, group.detail, now])
 
+  const cmdShown = useRef(cmdOpen)
+  useGSAP(
+    () => {
+      const pre = cmdRef.current
+      if (!pre || !canExpand) return
+      const line = () => {
+        const raw = getComputedStyle(pre).lineHeight
+        const parsed = Number.parseFloat(raw)
+        return Number.isFinite(parsed) ? parsed : pre.offsetHeight
+      }
+      const was = cmdShown.current
+      cmdShown.current = cmdOpen
+      if (was === cmdOpen) {
+        gsap.set(pre, { height: cmdOpen ? 'auto' : line(), overflow: 'hidden' })
+        return
+      }
+      if (cmdOpen) {
+        pre.style.whiteSpace = 'pre-wrap'
+        pre.style.textOverflow = 'clip'
+        pre.style.overflow = 'hidden'
+        gsap.to(pre, {
+          height: pre.scrollHeight,
+          duration: dur(DUR_EXPAND),
+          ease: EASE_APPLE,
+          overwrite: 'auto',
+          onComplete: () => {
+            pre.style.height = 'auto'
+            pre.style.overflow = 'auto'
+          },
+        })
+        return
+      }
+      pre.style.overflow = 'hidden'
+      gsap.to(pre, {
+        height: line(),
+        duration: dur(DUR_EXPAND),
+        ease: EASE_APPLE,
+        overwrite: 'auto',
+        onComplete: () => {
+          pre.style.whiteSpace = 'nowrap'
+          pre.style.textOverflow = 'ellipsis'
+        },
+      })
+    },
+    { dependencies: [cmdOpen, canExpand] },
+  )
+
   return (
     <article
       className={`row${group.destructive ? ' destructive' : ''}${selected ? ' selected' : ''}`}
@@ -76,7 +126,7 @@ export function InterruptCard({
     >
       <div className="row-top">
         <span className="title">{group.title}</span>
-        {lead ? <span className="chip kind">{hostLabel}</span> : null}
+        <HostMarks hosts={hosts} />
         {group.destructive ? <span className="chip">DESTRUCTIVE</span> : null}
       </div>
       <div className="meta">
@@ -157,7 +207,10 @@ export function InterruptCard({
           <dl className="kv">
             <div>
               <dt>Host</dt>
-              <dd>{hostLabel}</dd>
+              <dd className="host-dd">
+                <HostMarks hosts={hosts} />
+                <span>{hostLabel}</span>
+              </dd>
             </div>
             <div>
               <dt>Repo</dt>
@@ -188,7 +241,8 @@ export function InterruptCard({
           {agents.map((agent, index) => (
             <div key={agent.id} className="agent-row">
               <div className="agent-top">
-                <span>
+                <span className="agent-host">
+                  <HostMark host={agent.host} />
                   Agent {index + 1} · {formatHost(agent.host)}
                 </span>
                 <span>{formatAgo(agent.ts, now)}</span>

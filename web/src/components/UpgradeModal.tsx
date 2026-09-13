@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { DUR_EXPAND, DUR_FADE, EASE_APPLE, dur, gsap, useGSAP } from '../motion.ts'
 
 const CLOUD_COVERS = ['Phone approve', 'Multi-device compatibility', 'Hosted control plane']
 
@@ -27,18 +28,21 @@ type UpgradeModalProps = {
 export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const cloudRef = useRef<HTMLElement>(null)
   const enterpriseRef = useRef<HTMLElement>(null)
+  const shownPlan = useRef<Plan | null>(null)
   const [plan, setPlan] = useState<Plan>('cloud')
-  const [stageHeight, setStageHeight] = useState(0)
-  const [animateStage, setAnimateStage] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [company, setCompany] = useState('')
 
   useEffect(() => {
-    if (open) setPlan('cloud')
-    else setAnimateStage(false)
+    if (!open) {
+      setPlan('cloud')
+      shownPlan.current = null
+    }
   }, [open])
 
   useEffect(() => {
@@ -59,20 +63,39 @@ export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
     }
   }, [open, onClose])
 
-  useLayoutEffect(() => {
-    if (!open) return
-    const active = plan === 'cloud' ? cloudRef.current : enterpriseRef.current
-    if (!active) return
-    const measure = () => setStageHeight(active.offsetHeight)
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(active)
-    const frame = requestAnimationFrame(() => setAnimateStage(true))
-    return () => {
-      ro.disconnect()
-      cancelAnimationFrame(frame)
-    }
-  }, [open, plan])
+  const isCloud = plan === 'cloud'
+
+  useGSAP(
+    () => {
+      if (!open) return
+      const modal = modalRef.current
+      const stage = stageRef.current
+      const cloud = cloudRef.current
+      const enterprise = enterpriseRef.current
+      const active = isCloud ? cloud : enterprise
+      const idle = isCloud ? enterprise : cloud
+      if (!modal || !stage || !active || !idle) return
+
+      const width = Math.min(isCloud ? 440 : 760, window.innerWidth - 32)
+      const height = active.offsetHeight
+      const was = shownPlan.current
+      shownPlan.current = plan
+
+      if (was === plan || was === null) {
+        gsap.set(modal, { width })
+        gsap.set(stage, { height })
+        gsap.set(active, { autoAlpha: 1, y: 0 })
+        gsap.set(idle, { autoAlpha: 0, y: 8 })
+        return
+      }
+
+      gsap.to(modal, { width, duration: dur(DUR_EXPAND), ease: EASE_APPLE, overwrite: 'auto' })
+      gsap.to(stage, { height, duration: dur(DUR_EXPAND), ease: EASE_APPLE, overwrite: 'auto' })
+      gsap.to(active, { autoAlpha: 1, y: 0, duration: dur(DUR_EXPAND), ease: EASE_APPLE, overwrite: 'auto' })
+      gsap.to(idle, { autoAlpha: 0, y: 8, duration: dur(DUR_FADE), ease: EASE_APPLE, overwrite: 'auto' })
+    },
+    { dependencies: [open, plan] },
+  )
 
   if (!open) return null
 
@@ -89,11 +112,10 @@ export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
     onClose()
   }
 
-  const isCloud = plan === 'cloud'
-
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={modalRef}
         className={`modal${isCloud ? '' : ' wide'}`}
         role="dialog"
         aria-modal="true"
@@ -128,10 +150,7 @@ export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
           </button>
         </div>
 
-        <div
-          className={`plan-stage${animateStage ? ' anim' : ''}`}
-          style={stageHeight > 0 ? { height: stageHeight } : undefined}
-        >
+        <div ref={stageRef} className="plan-stage">
           <article
             ref={cloudRef}
             className={`plan-card plan-slide${isCloud ? ' on' : ''}`}
