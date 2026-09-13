@@ -1,7 +1,13 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { DUR_EXPAND, DUR_FADE, EASE_APPLE, dur, gsap, useGSAP } from '../motion.ts'
 
-const CLOUD_COVERS = ['Phone approve', 'Multi-device compatibility', 'Hosted control plane']
+const CLOUD_COVERS = [
+  'Unlimited agents per developer',
+  'Phone approve',
+  'Multi-device compatibility',
+  'Hosted control plane',
+  'Fair-use command evaluations included',
+]
 
 const ENTERPRISE_COVERS = [
   'Fail-closed hooks',
@@ -9,6 +15,7 @@ const ENTERPRISE_COVERS = [
   'Command classes, not one-off fingerprints',
   '9-minute park + live approve UI',
   'Cursor, Claude Code, MCP',
+  'Named seats or employee-band license — not per agent',
   'Boss RBAC (org → team → project → agent)',
   'Policy pack import / export',
   'On-prem Compose, air-gap, no cloud control plane',
@@ -159,9 +166,11 @@ export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
           >
             <p className="plan-kicker">Cloud</p>
             <p className="plan-price">
-              $5 <span>/ month / agent</span>
+              $15 <span>/ month / developer</span>
             </p>
-            <p className="plan-pitch">Approve from your phone. Same daemon on laptop and phone — multi-device.</p>
+            <p className="plan-pitch">
+              You pay for people, not sessions. Open as many Cursor, Claude, or MCP agents as you need.
+            </p>
             <ul className="plan-list">
               {CLOUD_COVERS.map((item) => (
                 <li key={item}>{item}</li>
@@ -180,8 +189,12 @@ export function UpgradeModal({ open, onClose, onToast }: UpgradeModalProps) {
           >
             <div className="plan-copy">
               <p className="plan-kicker">Enterprise</p>
-              <p className="plan-price">Contact</p>
-              <p className="plan-pitch">Everything we cover, on your network.</p>
+              <p className="plan-price">
+                Contact <span>/ annual</span>
+              </p>
+              <p className="plan-pitch">
+                Named seats or a team-size license on your network. Agent count never hits the invoice.
+              </p>
               <ul className="plan-list">
                 {ENTERPRISE_COVERS.map((item) => (
                   <li key={item}>{item}</li>

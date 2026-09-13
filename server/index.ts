@@ -6,6 +6,7 @@ import { DecisionSchema, InterruptSchema } from '../shared/types.ts'
 import { ClaudeCodeHookSchema, toInterrupt, toResponse } from './adapters/claudeCode.ts'
 import {
   CursorHookSchema,
+  enforceCursorAction,
   isAfterHook,
   toInterrupt as cursorToInterrupt,
   toResponse as cursorToResponse,
@@ -353,7 +354,7 @@ app.post('/hook/cursor', async (req, res) => {
     if (!interrupt) {
       noteCursorHook('missing command or path')
       console.log(`hook cursor missing command elapsed=${Date.now() - started}ms`)
-      res.json(cursorToResponse(enforceCursorAction(body, 'ask'), 'unparseable hook body'))
+      res.json(cursorToResponse(enforceCursorAction(parsed.data, 'ask'), 'unparseable hook body'))
       return
     }
     noteCursorHook(`${interrupt.tool} ${interrupt.cwd}`)
