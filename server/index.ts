@@ -5,6 +5,7 @@ import { DecisionSchema, InterruptSchema } from '../shared/types.ts'
 import { ClaudeCodeHookSchema, toInterrupt, toResponse } from './adapters/claudeCode.ts'
 import {
   CursorHookSchema,
+  enforceCursorAction,
   toInterrupt as cursorToInterrupt,
   toResponse as cursorToResponse,
 } from './adapters/cursor.ts'
@@ -150,14 +151,19 @@ app.post('/hook/cursor', async (req, res) => {
     if (!parsed.success) {
       noteCursorHook('unparseable hook body')
       console.log(`hook cursor unparseable elapsed=${Date.now() - started}ms`)
-      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      const raw =
+        req.body && typeof req.body === 'object'
+          ? (req.body as { hook_event_name?: string; tool_name?: string; command?: string })
+          : {}
+      res.json(cursorToResponse(enforceCursorAction(raw, 'ask'), 'unparseable hook body'))
       return
     }
-    const interrupt = cursorToInterrupt(parsed.data)
+    const body = parsed.data
+    const interrupt = cursorToInterrupt(body)
     if (!interrupt) {
-      noteCursorHook('missing command')
+      noteCursorHook('missing command or path')
       console.log(`hook cursor missing command elapsed=${Date.now() - started}ms`)
-      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      res.json(cursorToResponse(enforceCursorAction(body, 'ask'), 'unparseable hook body'))
       return
     }
     noteCursorHook(`${interrupt.tool} ${interrupt.cwd}`)
@@ -166,7 +172,7 @@ app.post('/hook/cursor', async (req, res) => {
     )
     req.setTimeout(0)
     res.setTimeout(0)
-    const action = await evaluateCommand(interrupt)
+    const action = enforceCursorAction(body, await evaluateCommand(interrupt))
     res.json(cursorToResponse(action, `decision: ${action}`))
   } catch (err) {
     noteCursorHook(err instanceof Error ? err.message : 'hook error')
