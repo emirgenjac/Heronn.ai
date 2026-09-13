@@ -5,11 +5,13 @@
  *
  * Daemon must already be up: npm run dev
  * Parked cases are left in the UI at http://localhost:5173
+ * UI cards are posted 1.5s apart.
  */
 
 const BASE = 'http://127.0.0.1:7777'
 const CWD = process.cwd()
 const PARK_MS = 2000
+const GAP_MS = 1500
 
 const CASES = [
   {
@@ -95,6 +97,10 @@ function line(msg) {
   console.log(`${ts()}  ${msg}`)
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function cursorShell(command, toolUseId) {
   return {
     command,
@@ -160,9 +166,21 @@ async function pendingById(id) {
   return null
 }
 
+async function waitForCard(id, ms) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    const group = await pendingById(id)
+    if (group) return group
+    await sleep(80)
+  }
+  return null
+}
+
 async function runCase(c, index, total) {
   const toolUseId = `issue-${c.id}-${Date.now()}-${index}`
-  const path = c.host === 'claude' ? '/hook/claude-code' : '/hook/cursor'
+  const hold = c.expect === 'park'
+  const path =
+    (c.host === 'claude' ? '/hook/claude-code' : '/hook/cursor') + (hold ? '?hold=1' : '')
   const body = c.tool === 'Write'
     ? cursorWrite(c.path, toolUseId)
     : c.host === 'claude'
@@ -173,34 +191,26 @@ async function runCase(c, index, total) {
   line(`         expect=${c.expect}  why: ${c.why}`)
   line(`         POST ${path}  id=${toolUseId}`)
 
-  const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), PARK_MS)
   const started = Date.now()
+  const { status, json } = await getJson(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const perm = permissionOf(json)
+  const reason = json.user_message ?? json.hookSpecificOutput?.permissionDecisionReason ?? ''
 
-  let got = 'park'
-  let detail = ''
-  try {
-    const { status, json } = await getJson(`${BASE}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ac.signal,
-    })
-    const perm = permissionOf(json)
-    got = perm || `http-${status}`
-    detail = json.user_message ?? json.hookSpecificOutput?.permissionDecisionReason ?? ''
-  } catch (err) {
-    if (err?.name !== 'AbortError') throw err
-    const group = await pendingById(toolUseId)
+  let got = perm || `http-${status}`
+  let detail = reason
+  if (hold) {
+    const group = await waitForCard(toolUseId, PARK_MS)
     if (group) {
       got = 'park'
       detail = `card "${group.title ?? group.detail ?? ''}"  pending=${group.interruptIds?.length ?? 1}`
     } else {
-      got = 'timeout'
-      detail = `no hook response and no card after ${PARK_MS}ms`
+      got = perm || 'timeout'
+      detail = `no card after ${PARK_MS}ms  hook=${perm || `http-${status}`} ${reason}`
     }
-  } finally {
-    clearTimeout(timer)
   }
 
   const ms = Date.now() - started
@@ -213,7 +223,7 @@ async function runCase(c, index, total) {
 async function main() {
   console.log('')
   line(`issue run  ${BASE}  cwd=${CWD}`)
-  line('health check')
+  line(`health check  ui gap ${GAP_MS}ms`)
 
   let health
   try {
@@ -231,6 +241,10 @@ async function main() {
 
   const results = []
   for (let i = 0; i < CASES.length; i++) {
+    if (i > 0 && CASES[i - 1].kind === 'park') {
+      line(`         wait ${GAP_MS}ms before next UI card`)
+      await sleep(GAP_MS)
+    }
     console.log('')
     results.push(await runCase(CASES[i], i + 1, CASES.length))
   }
