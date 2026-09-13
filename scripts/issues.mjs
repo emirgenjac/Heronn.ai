@@ -3,23 +3,31 @@
  *
  *   npm run test:issues
  *   npm run test:issues -- --fast
+ *   npm run test:issues -- --only=auto
  *   npm run test:issues -- --only=park
  *   npm run test:issues -- --only=deny   (blacklist cases; they park, they do not auto-deny)
+ *   npm run test:reset                   (clear checkbox auto-allows)
  *
  * Daemon must already be up: npm run dev
  * Parked cases use ?hold=1 so cards show at http://localhost:5173
  * UI cards are posted 1.5s apart unless --fast.
  *
  * Auto cases assume this repo's policies.json: class dependency + build,
- * prefix npm install. Fingerprint rules in app.db can still auto-allow
- * a park case (git status is the usual example) — park commands here
- * are unique so they should not collide with old "always allow" rules.
+ * prefix npm install. If you tick "this project" or "this PC" and Allow on a
+ * parked card, the next run treats that case as auto-allow. Tracked in
+ * test/issues-learned.json (not prod policies.json).
  */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 
 const BASE = 'http://127.0.0.1:7777'
 const CWD = process.cwd()
 const PARK_MS = 2000
 const GAP_MS = 1500
+const LEARNED_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'test', 'issues-learned.json')
+const REPO = 'Adria-Hack-AI-Project'
 
 const argv = process.argv.slice(2)
 const FAST = argv.includes('--fast')
@@ -171,9 +179,60 @@ const CASES = [
   }),
 ]
 
-const SELECTED = ONLY
-  ? CASES.filter((c) => (ONLY === 'deny' ? c.source === 'blacklist' : c.kind === ONLY))
+function loadLearned() {
+  if (!existsSync(LEARNED_PATH)) return { allows: [] }
+  try {
+    const raw = JSON.parse(readFileSync(LEARNED_PATH, 'utf8'))
+    return { allows: Array.isArray(raw.allows) ? raw.allows : [] }
+  } catch {
+    return { allows: [] }
+  }
+}
+
+function saveLearned(data) {
+  mkdirSync(dirname(LEARNED_PATH), { recursive: true })
+  writeFileSync(LEARNED_PATH, `${JSON.stringify(data, null, 2)}\n`)
+}
+
+let learned = loadLearned()
+
+function learnedHit(id) {
+  return learned.allows.find((a) => a.id === id)
+}
+
+function rememberAllow(c, checkbox) {
+  if (c.source === 'blacklist') return
+  learned.allows = learned.allows.filter((a) => a.id !== c.id)
+  learned.allows.push({
+    id: c.id,
+    command: typeof c.command === 'string' ? c.command : c.id,
+    checkbox,
+    ts: Date.now(),
+  })
+  saveLearned(learned)
+}
+
+function withLearned(c) {
+  const hit = learnedHit(c.id)
+  if (!hit || c.source === 'blacklist') return c
+  return {
+    ...c,
+    kind: 'auto',
+    expect: 'allow',
+    learned: true,
+    checkbox: hit.checkbox,
+    why: `checkbox "${hit.checkbox}" — auto-allow`,
+  }
+}
+
+const SELECTED = (ONLY
+  ? CASES.filter((c) => {
+      const view = withLearned(c)
+      if (ONLY === 'deny') return c.source === 'blacklist'
+      return view.kind === ONLY
+    })
   : CASES
+).map(withLearned)
 
 function ts() {
   return new Date().toISOString().slice(11, 23)
@@ -289,14 +348,41 @@ async function pendingById(id) {
   return null
 }
 
-async function waitForCard(id, ms) {
+async function waitForParkOutcome(id, ms) {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
     const group = await pendingById(id)
-    if (group) return group
+    if (group) return { kind: 'park', group }
+    const row = await decisionById(id)
+    if (row?.decision) return { kind: 'decided', row }
     await sleep(80)
   }
-  return null
+  return { kind: 'timeout' }
+}
+
+async function decisionById(id) {
+  const { json } = await getJson(`${BASE}/api/logs?limit=200`)
+  const rows = json.rows ?? []
+  return rows.find((r) => r.id === id) ?? null
+}
+
+function prefixHit(command, prefixes) {
+  if (!command || !Array.isArray(prefixes)) return false
+  return prefixes.some(
+    (p) => typeof p === 'string' && (command === p || command.startsWith(`${p} `) || command.startsWith(p)),
+  )
+}
+
+function inferCheckbox(command, policy) {
+  const machine = policy?.machine ?? {}
+  const project = policy?.projects?.[REPO] ?? {}
+  if (prefixHit(command, machine.allowPrefixes)) return 'this PC'
+  if (prefixHit(command, project.allowPrefixes)) return 'this project'
+  const extra = (classes) => (classes ?? []).filter((c) => c !== 'dependency' && c !== 'build')
+  if (extra(machine.allowClasses).length) return 'this PC'
+  if (extra(project.allowClasses).length) return 'this project'
+  if ((machine.allowClasses ?? []).length) return 'this PC'
+  return 'this project'
 }
 
 async function runCase(c, index, total) {
@@ -321,11 +407,23 @@ async function runCase(c, index, total) {
 
   let got = perm || `http-${status}`
   let detail = reason
+  let kind = c.kind
   if (hold) {
-    const group = await waitForCard(toolUseId, PARK_MS)
-    if (group) {
+    const outcome = await waitForParkOutcome(toolUseId, PARK_MS)
+    if (outcome.kind === 'park') {
       got = 'park'
+      const group = outcome.group
       detail = `card "${group.title ?? group.detail ?? ''}"  pending=${group.interruptIds?.length ?? 1}`
+    } else if (outcome.kind === 'decided' && outcome.row.decision === 'allow' && c.source !== 'blacklist') {
+      const policy = (await getJson(`${BASE}/api/policy`)).json
+      const checkbox = inferCheckbox(typeof c.command === 'string' ? c.command : '', policy)
+      rememberAllow(c, checkbox)
+      got = 'allow'
+      kind = 'auto'
+      detail = `checkbox "${checkbox}" — auto-allow, recorded in test/issues-learned.json`
+    } else if (outcome.kind === 'decided') {
+      got = outcome.row.decision
+      detail = `no card — ${got} by ${outcome.row.decidedBy ?? '?'}`
     } else {
       got = perm || 'timeout'
       detail = `no card after ${PARK_MS}ms  hook=${perm || `http-${status}`} ${reason}`
@@ -333,10 +431,10 @@ async function runCase(c, index, total) {
   }
 
   const ms = Date.now() - started
-  const pass = got === c.expect
+  const pass = got === c.expect || (c.expect === 'park' && got === 'allow' && kind === 'auto')
   line(`         got=${got}  ${ms}ms  ${pass ? 'PASS' : 'FAIL'}${detail ? `  ${detail}` : ''}`)
   if (!pass) line(`         FAIL expected ${c.expect}, got ${got}`)
-  return { ...c, got, ms, pass, toolUseId, detail }
+  return { ...c, kind, got, ms, pass, toolUseId, detail }
 }
 
 async function main() {
@@ -346,7 +444,10 @@ async function main() {
   }
 
   console.log('')
-  line(`issue run  ${BASE}  cwd=${CWD}`)
+  line(
+    `issue run  ${BASE}  cwd=${CWD}` +
+      (learned.allows.length ? `  learned=${learned.allows.length} from test/issues-learned.json` : ''),
+  )
   line(
     `health check  ui gap ${FAST ? 0 : GAP_MS}ms  cases=${SELECTED.length}/${CASES.length}` +
       (ONLY ? `  only=${ONLY}` : '') +
@@ -388,6 +489,7 @@ async function main() {
       `  auto=${results.filter((r) => r.kind === 'auto').length}` +
       `  blacklist-park=${results.filter((r) => r.source === 'blacklist').length}` +
       `  park=${results.filter((r) => r.kind === 'park').length}` +
+      `  learned-allow=${results.filter((r) => r.learned || (r.kind === 'auto' && r.expect === 'park')).length}` +
       `  ask=${results.filter((r) => r.kind === 'ask').length}`,
   )
   if (fail.length > 0) {

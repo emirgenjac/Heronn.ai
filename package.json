@@ -14,7 +14,8 @@
     "test:blacklist": "tsx --test server/policy/blacklist.test.ts",
     "test:evaluate": "tsx --test server/policy/evaluate.test.ts",
     "test:policy": "tsx --test server/policy/blacklist.test.ts server/policy/evaluate.test.ts server/policy/classifyCmd.test.ts",
-    "test:issues": "node scripts/issues.mjs"
+    "test:issues": "node scripts/issues.mjs",
+    "test:reset": "node scripts/reset-issues-learned.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
