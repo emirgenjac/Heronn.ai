@@ -70,10 +70,10 @@ async function main() {
     )
   }
 
-  console.log('\nWarm 200x git push --force')
+  console.log('\nWarm 200x git push --force (park then settle deny)')
   const t0 = performance.now()
   for (let i = 0; i < 200; i++) {
-    const res = await fetch(HOOK, {
+    const hookPromise = fetch(HOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,8 +82,11 @@ async function main() {
         tool_name: 'Shell',
       }),
     }).then((r) => r.json())
+    await new Promise((r) => setTimeout(r, 20))
+    await decidePending('deny')
+    const res = await hookPromise
     const d = res.permission ?? res.hookSpecificOutput?.permissionDecision
-    if (d !== 'deny') throw new Error(`expected deny, got ${d}`)
+    if (d !== 'deny') throw new Error(`expected deny after park, got ${d}`)
   }
   const elapsed = performance.now() - t0
   console.log(

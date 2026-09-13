@@ -92,15 +92,18 @@ function groupRows(rows: InterruptRow[]): Group[] {
   return [...grouped.values()]
 }
 
+const STATS_WINDOW_MS = 60 * 60 * 1000
+
 export function getSnapshot(): { groups: Group[]; agents: Record<string, QueueAgent[]>; stats: Stats } {
   const pending = db
     .prepare(`SELECT * FROM interrupts WHERE state = 'pending' ORDER BY ts ASC`)
     .all() as InterruptRow[]
 
+  const since = Date.now() - STATS_WINDOW_MS
   const autoResolved = (
-    db.prepare(`SELECT COUNT(*) AS n FROM interrupts WHERE state = 'auto'`).get() as { n: number }
+    db.prepare(`SELECT COUNT(*) AS n FROM interrupts WHERE state = 'auto' AND ts > ?`).get(since) as { n: number }
   ).n
-  const total = (db.prepare(`SELECT COUNT(*) AS n FROM interrupts`).get() as { n: number }).n
+  const total = (db.prepare(`SELECT COUNT(*) AS n FROM interrupts WHERE ts > ?`).get(since) as { n: number }).n
   const oldestTs = pending[0]?.ts
   const blocked = pending.length
 
