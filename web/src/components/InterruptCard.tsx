@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { Action, Group } from '../../../shared/types.ts'
 import type { QueueAgent } from '../api.ts'
 import { formatAgo, formatHost } from '../format.ts'
+import { Reveal } from './Reveal.tsx'
 
 type InterruptCardProps = {
   group: Group
@@ -17,14 +18,6 @@ type InterruptCardProps = {
   onDecide: (action: Action) => void
   onToggleAlways: () => void
   onToggleMachine: () => void
-}
-
-function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
-  return (
-    <div className={`reveal${open ? ' open' : ''}`}>
-      <div className="reveal-inner">{children}</div>
-    </div>
-  )
 }
 
 export function InterruptCard({

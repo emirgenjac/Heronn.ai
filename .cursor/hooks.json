@@ -18,7 +18,15 @@
       {
         "command": "node .cursor/hooks/relay.mjs",
         "timeout": 540,
-        "matcher": "Shell"
+        "failClosed": true,
+        "matcher": "Write|StrReplace|Delete|Edit"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "node .cursor/hooks/relay.mjs",
+        "timeout": 540,
+        "failClosed": true
       }
     ],
     "postToolUse": [

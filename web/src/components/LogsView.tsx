@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react'
 import { fetchLogs, type LogRow } from '../api.ts'
-import { formatAgo } from '../format.ts'
+import { commandOfLog, formatAgo, formatHost } from '../format.ts'
+import { LogDetails } from './LogDetails.tsx'
+import { Reveal } from './Reveal.tsx'
 
 type LogsViewProps = {
   onUseInPolicy: (command: string) => void
   onToast: (text: string) => void
-}
-
-function commandOf(row: LogRow): string {
-  try {
-    const args = JSON.parse(row.args) as { command?: unknown }
-    if (typeof args.command === 'string' && args.command.trim()) return args.command
-  } catch {
-    /* ignore */
-  }
-  return row.detail || row.title
 }
 
 export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
@@ -24,6 +16,7 @@ export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
   const [host, setHost] = useState('')
   const [rows, setRows] = useState<LogRow[]>([])
   const [now, setNow] = useState(() => Date.now())
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   async function reload(next = { q, decidedBy, action, host }) {
     try {
@@ -90,22 +83,43 @@ export function LogsView({ onUseInPolicy, onToast }: LogsViewProps) {
       ) : (
         <div className="list">
           {rows.map((row) => {
-            const command = commandOf(row)
+            const command = commandOfLog(row)
+            const open = expanded === row.id
             return (
-              <article key={row.id} className={`row${row.destructive ? ' destructive' : ''}`}>
+              <article
+                key={row.id}
+                className={`row${row.destructive ? ' destructive' : ''}${open ? ' selected' : ''}`}
+              >
                 <div className="row-top">
-                  <span className="title">{row.title || command}</span>
-                  <span className="chip kind">{row.decision ?? row.state}</span>
+                  <span className="title clip">{row.title || command}</span>
+                  <span className="chip kind">{formatHost(row.host)}</span>
+                  {row.decision ? <span className="chip kind">{row.decision}</span> : null}
+                  {row.destructive ? <span className="chip">DESTRUCTIVE</span> : null}
                 </div>
                 <div className="meta">
-                  {row.host} · {row.repo || 'repo'} · {row.decidedBy ?? '—'} · {formatAgo(row.ts, now)}
+                  {row.repo || 'repo'} · {row.tool || 'tool'} · {row.decidedBy ?? '—'} · {formatAgo(row.ts, now)}
                 </div>
-                <div className="cmd">{command}</div>
+                {command ? (
+                  <div className="cmd-fold static">
+                    <pre className="cmd-text">{command}</pre>
+                  </div>
+                ) : null}
                 <div className="actions">
                   <button className="btn" type="button" onClick={() => onUseInPolicy(command)}>
                     Use in policy
                   </button>
+                  <button
+                    className={`btn${open ? ' on' : ''}`}
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setExpanded(open ? null : row.id)}
+                  >
+                    {open ? 'Hide details' : 'Details'}
+                  </button>
                 </div>
+                <Reveal open={open}>
+                  <LogDetails row={row} now={now} />
+                </Reveal>
               </article>
             )
           })}

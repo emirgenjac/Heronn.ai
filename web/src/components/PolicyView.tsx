@@ -4,9 +4,14 @@ import {
   fetchPolicy,
   postPolicy,
   type LogRow,
+  type PolicyDecision,
   type PolicyOp,
   type PolicySnapshot,
+  type ScopedPolicy,
 } from '../api.ts'
+import { commandOfLog, formatStamp, shortLabel } from '../format.ts'
+import { LogDetails } from './LogDetails.tsx'
+import { DetailBlock, Kv, Reveal, type KvItem } from './Reveal.tsx'
 
 type PolicyViewProps = {
   search: string
@@ -18,22 +23,19 @@ type PolicyRow = {
   key: string
   kind: 'class' | 'prefix' | 'rule' | 'log'
   section: 'saved' | 'cursor' | 'search'
-  label: string
+  title: string
+  chip: string
+  chipCursor?: boolean
   meta: string
+  command?: string
   op: PolicyOp
   canAllow: boolean
   canDeny: boolean
   canForget: boolean
-}
-
-function commandOf(row: LogRow): string {
-  try {
-    const args = JSON.parse(row.args) as { command?: unknown }
-    if (typeof args.command === 'string' && args.command.trim()) return args.command
-  } catch {
-    /* ignore */
-  }
-  return row.detail || row.title
+  destructive?: boolean
+  fields: KvItem[]
+  related?: PolicyDecision[]
+  log?: LogRow
 }
 
 function matches(haystack: string, q: string): boolean {
@@ -45,13 +47,27 @@ function reviewableCommand(command: string): boolean {
   return command.length > 0 && command.length <= 280 && !command.includes('\n')
 }
 
+function relatedForClass(policy: ScopedPolicy, cls: string): PolicyDecision[] {
+  return policy.decisions.filter((d) => d.class === cls).slice(-8).reverse()
+}
+
+function relatedForPrefix(policy: ScopedPolicy, prefix: string): PolicyDecision[] {
+  return policy.decisions
+    .filter((d) => d.command === prefix || d.command.startsWith(`${prefix} `))
+    .slice(-8)
+    .reverse()
+}
+
 function logRow(log: LogRow, command: string, section: PolicyRow['section'], meta: string): PolicyRow {
   return {
     key: `${section}-${log.id}`,
     kind: 'log',
     section,
-    label: command,
+    title: log.title?.trim() || shortLabel(command),
+    chip: section === 'cursor' ? 'CURSOR' : 'LOG',
+    chipCursor: section === 'cursor',
     meta,
+    command,
     op: {
       op: 'allow',
       scope: 'repo',
@@ -62,6 +78,9 @@ function logRow(log: LogRow, command: string, section: PolicyRow['section'], met
     canAllow: log.destructive !== 1,
     canDeny: true,
     canForget: false,
+    destructive: log.destructive === 1,
+    fields: [],
+    log,
   }
 }
 
@@ -70,6 +89,8 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
   const [logs, setLogs] = useState<LogRow[]>([])
   const [cursorAllows, setCursorAllows] = useState<LogRow[]>([])
   const [busy, setBusy] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
   async function reload() {
     const q = search.trim()
@@ -86,6 +107,7 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
     setPolicy(nextPolicy)
     setCursorAllows(nextCursor)
     setLogs(nextLogs)
+    setNow(Date.now())
   }
 
   useEffect(() => {
@@ -103,12 +125,20 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
         key: `class-global-${cls}`,
         kind: 'class',
         section: 'saved',
-        label: `Class ${cls}`,
+        title: `Class ${cls}`,
+        chip: 'CLASS',
         meta: 'this PC',
         op: { op: 'forget', scope: 'global', class: cls },
         canAllow: false,
         canDeny: false,
         canForget: true,
+        fields: [
+          { label: 'Kind', value: 'Class auto-allow' },
+          { label: 'Scope', value: 'this PC' },
+          { label: 'Repo', value: '—' },
+          { label: 'Class', value: cls, mono: true },
+        ],
+        related: relatedForClass(policy.machine, cls),
       })
     }
     for (const prefix of policy.machine.allowPrefixes) {
@@ -117,12 +147,20 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
         key: `prefix-global-${prefix}`,
         kind: 'prefix',
         section: 'saved',
-        label: prefix,
+        title: shortLabel(prefix),
+        chip: 'PREFIX',
         meta: 'this PC · prefix',
+        command: prefix,
         op: { op: 'forget', scope: 'global', prefix },
         canAllow: false,
         canDeny: true,
         canForget: true,
+        fields: [
+          { label: 'Kind', value: 'Allowed prefix' },
+          { label: 'Scope', value: 'this PC' },
+          { label: 'Repo', value: '—' },
+        ],
+        related: relatedForPrefix(policy.machine, prefix),
       })
     }
     for (const [repo, project] of Object.entries(policy.projects)) {
@@ -132,12 +170,20 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
           key: `class-${repo}-${cls}`,
           kind: 'class',
           section: 'saved',
-          label: `Class ${cls}`,
+          title: `Class ${cls}`,
+          chip: 'CLASS',
           meta: `${repo} · this project`,
           op: { op: 'forget', scope: 'repo', repo, class: cls },
           canAllow: false,
           canDeny: false,
           canForget: true,
+          fields: [
+            { label: 'Kind', value: 'Class auto-allow' },
+            { label: 'Scope', value: 'this project' },
+            { label: 'Repo', value: repo },
+            { label: 'Class', value: cls, mono: true },
+          ],
+          related: relatedForClass(project, cls),
         })
       }
       for (const prefix of project.allowPrefixes) {
@@ -146,12 +192,20 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
           key: `prefix-${repo}-${prefix}`,
           kind: 'prefix',
           section: 'saved',
-          label: prefix,
+          title: shortLabel(prefix),
+          chip: 'PREFIX',
           meta: `${repo} · this project · prefix`,
+          command: prefix,
           op: { op: 'forget', scope: 'repo', repo, prefix },
           canAllow: false,
           canDeny: true,
           canForget: true,
+          fields: [
+            { label: 'Kind', value: 'Allowed prefix' },
+            { label: 'Scope', value: 'this project' },
+            { label: 'Repo', value: repo },
+          ],
+          related: relatedForPrefix(project, prefix),
         })
       }
     }
@@ -162,7 +216,8 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
         key: `rule-${rule.id}`,
         kind: 'rule',
         section: 'saved',
-        label: `${rule.action} ${rule.fingerprint.slice(0, 12)}`,
+        title: `${rule.action} ${rule.fingerprint.slice(0, 12)}`,
+        chip: 'RULE',
         meta: `${scopeLabel} · ${rule.hits} hits`,
         op: {
           op: 'forget',
@@ -174,27 +229,39 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
         canAllow: false,
         canDeny: rule.action !== 'deny',
         canForget: true,
+        fields: [
+          { label: 'Kind', value: 'Fingerprint rule' },
+          { label: 'Action', value: rule.action },
+          { label: 'Scope', value: rule.scope === 'global' ? 'this PC' : 'this project' },
+          { label: 'Repo', value: rule.repo || '—' },
+          { label: 'Hits', value: String(rule.hits) },
+          { label: 'Created', value: formatStamp(rule.createdAt, now) },
+          { label: 'Rule ID', value: rule.id, mono: true },
+          { label: 'Fingerprint', value: rule.fingerprint, mono: true },
+        ],
       })
     }
 
-    const encoded = new Set(next.map((row) => row.label))
+    const encoded = new Set(next.map((row) => row.command ?? row.title))
     const seenCommands = new Set(encoded)
     for (const log of cursorAllows) {
-      const command = commandOf(log)
+      const command = commandOfLog(log)
       if (!reviewableCommand(command) || seenCommands.has(command)) continue
       if (!matches(`${command} ${log.repo} ${log.title}`, q)) continue
       seenCommands.add(command)
       next.push(logRow(log, command, 'cursor', `${log.repo || 'repo'} · allowed in Cursor`))
     }
     for (const log of logs) {
-      const command = commandOf(log)
+      const command = commandOfLog(log)
       if (!command || seenCommands.has(command)) continue
       if (!matches(`${command} ${log.repo} ${log.title}`, q)) continue
       seenCommands.add(command)
-      next.push(logRow(log, command, 'search', `${log.repo || 'repo'} · ${log.decidedBy ?? log.state} · from logs`))
+      next.push(
+        logRow(log, command, 'search', `${log.repo || 'repo'} · ${log.decidedBy ?? log.state} · from logs`),
+      )
     }
     return next
-  }, [policy, logs, cursorAllows, search])
+  }, [policy, logs, cursorAllows, search, now])
 
   async function run(op: PolicyOp, toast: string) {
     setBusy(true)
@@ -242,59 +309,107 @@ export function PolicyView({ search, onSearch, onToast }: PolicyViewProps) {
                   {heading.title}
                   <span>{heading.hint}</span>
                 </div>
-                {slice.map((row) => (
-                  <article key={row.key} className="row">
-                    <div className="row-top">
-                      <span className="title">{row.label}</span>
-                      <span className={`chip kind${row.section === 'cursor' ? ' cursor' : ''}`}>
-                        {row.section === 'cursor' ? 'CURSOR' : row.kind}
-                      </span>
-                    </div>
-                    <div className="meta">{row.meta}</div>
-                    <div className="actions">
-                      {row.canAllow ? (
-                        <button
-                          className="btn allow"
-                          type="button"
-                          disabled={busy}
-                          onClick={() => run({ ...row.op, op: 'allow' }, 'Allowed for next time')}
-                        >
-                          Allow
-                        </button>
+                {slice.map((row) => {
+                  const open = expanded === row.key
+                  return (
+                    <article
+                      key={row.key}
+                      className={`row${row.destructive ? ' destructive' : ''}${open ? ' selected' : ''}`}
+                    >
+                      <div className="row-top">
+                        <span className="title clip">{row.title}</span>
+                        <span className={`chip kind${row.chipCursor ? ' cursor' : ''}`}>{row.chip}</span>
+                        {row.destructive ? <span className="chip">DESTRUCTIVE</span> : null}
+                      </div>
+                      <div className="meta">{row.meta}</div>
+                      {row.command ? (
+                        <div className="cmd-fold static">
+                          <pre className="cmd-text">{row.command}</pre>
+                        </div>
                       ) : null}
-                      {row.canDeny ? (
+                      <div className="actions">
+                        {row.canAllow ? (
+                          <button
+                            className="btn allow"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => run({ ...row.op, op: 'allow' }, 'Allowed for next time')}
+                          >
+                            Allow
+                          </button>
+                        ) : null}
+                        {row.canDeny ? (
+                          <button
+                            className="btn deny"
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              run(
+                                {
+                                  ...row.op,
+                                  op: 'deny',
+                                  command: row.op.command ?? row.command,
+                                  prefix: row.kind === 'prefix' ? row.command : row.op.prefix,
+                                },
+                                'Denied for next time',
+                              )
+                            }
+                          >
+                            Deny
+                          </button>
+                        ) : null}
+                        {row.canForget ? (
+                          <button
+                            className="btn"
+                            type="button"
+                            disabled={busy}
+                            onClick={() => run({ ...row.op, op: 'forget' }, 'Forgotten from policy — log kept')}
+                          >
+                            Forget
+                          </button>
+                        ) : null}
                         <button
-                          className="btn deny"
+                          className={`btn${open ? ' on' : ''}`}
                           type="button"
-                          disabled={busy}
-                          onClick={() =>
-                            run(
-                              {
-                                ...row.op,
-                                op: 'deny',
-                                command: row.op.command ?? (row.kind === 'prefix' ? row.label : undefined),
-                                prefix: row.kind === 'prefix' ? row.label : row.op.prefix,
-                              },
-                              'Denied for next time',
-                            )
-                          }
+                          aria-expanded={open}
+                          onClick={() => setExpanded(open ? null : row.key)}
                         >
-                          Deny
+                          {open ? 'Hide details' : 'Details'}
                         </button>
-                      ) : null}
-                      {row.canForget ? (
-                        <button
-                          className="btn"
-                          type="button"
-                          disabled={busy}
-                          onClick={() => run({ ...row.op, op: 'forget' }, 'Forgotten from policy — log kept')}
-                        >
-                          Forget
-                        </button>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
+                      </div>
+                      <Reveal open={open}>
+                        {row.log ? (
+                          <LogDetails row={row.log} now={now} />
+                        ) : (
+                          <div className="detail-panel">
+                            <Kv items={row.fields} />
+                            {row.command ? (
+                              <DetailBlock label="Command">
+                                <pre className="detail-pre">{row.command}</pre>
+                              </DetailBlock>
+                            ) : null}
+                            {row.related && row.related.length > 0 ? (
+                              <>
+                                <div className="agent-list-label">Recent matching decisions</div>
+                                {row.related.map((decision, index) => (
+                                  <div key={`${decision.ts}-${index}`} className="agent-row">
+                                    <div className="agent-top">
+                                      <span>
+                                        {decision.action} · {decision.class}
+                                      </span>
+                                      <span>{formatStamp(decision.ts, now)}</span>
+                                    </div>
+                                    <div className="mono agent-meta">{decision.command}</div>
+                                  </div>
+                                ))}
+                              </>
+                            ) : null}
+                          </div>
+                        )}
+                      </Reveal>
+                    </article>
+                  )
+                })}
               </div>
             )
           })}

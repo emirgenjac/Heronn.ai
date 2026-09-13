@@ -297,7 +297,11 @@ app.post('/hook/cursor', async (req, res) => {
     if (!parsed.success) {
       noteCursorHook('unparseable hook body')
       console.log(`hook cursor unparseable elapsed=${Date.now() - started}ms`)
-      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      const raw =
+        req.body && typeof req.body === 'object'
+          ? (req.body as { hook_event_name?: string; tool_name?: string; command?: string })
+          : {}
+      res.json(cursorToResponse(enforceCursorAction(raw, 'ask'), 'unparseable hook body'))
       return
     }
     if (isAfterHook(parsed.data)) {
@@ -314,9 +318,9 @@ app.post('/hook/cursor', async (req, res) => {
     }
     const interrupt = cursorToInterrupt(parsed.data)
     if (!interrupt) {
-      noteCursorHook('missing command')
+      noteCursorHook('missing command or path')
       console.log(`hook cursor missing command elapsed=${Date.now() - started}ms`)
-      res.json(cursorToResponse('ask', 'unparseable hook body'))
+      res.json(cursorToResponse(enforceCursorAction(body, 'ask'), 'unparseable hook body'))
       return
     }
     noteCursorHook(`${interrupt.tool} ${interrupt.cwd}`)

@@ -56,7 +56,7 @@ export function Header({
             </button>
           </nav>
           <div className="header-actions">
-            <button className="btn header-btn" type="button" onClick={onUpgrade}>
+            <button className="upgrade-btn" type="button" onClick={onUpgrade}>
               Upgrade
             </button>
           </div>

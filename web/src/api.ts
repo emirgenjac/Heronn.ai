@@ -53,6 +53,8 @@ export type LogRow = {
   id: string
   ts: number
   host: string
+  sessionId: string
+  cwd: string
   repo: string
   tool: string
   args: string
