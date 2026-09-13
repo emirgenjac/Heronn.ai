@@ -43,9 +43,12 @@ function titleForBash(stage: Stage, destructive: boolean): string {
 }
 
 function titleForOther(tool: string, destructive: boolean): string {
-  if (tool === 'Write' || tool.toLowerCase() === 'write') {
-    return destructive ? 'Write a file outside the repo' : 'Write a file in the repo'
+  const t = tool.toLowerCase()
+  if (t === 'write') return destructive ? 'Write a file outside the repo' : 'Write a file in the repo'
+  if (t === 'strreplace' || t === 'edit') {
+    return destructive ? 'Edit a file outside the repo' : 'Edit a file in the repo'
   }
+  if (t === 'delete') return destructive ? 'Delete a file outside the repo' : 'Delete a file in the repo'
   return tool
 }
 

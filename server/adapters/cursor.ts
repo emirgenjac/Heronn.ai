@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Action, Interrupt } from '../../shared/types.ts'
 
+const PATH_KEYS = ['file_path', 'path', 'file', 'filepath', 'target', 'filename'] as const
+
 const ToolInputSchema = z
   .object({
     command: z.string().optional(),
@@ -37,49 +39,75 @@ function gitRoot(cwd: string): string {
   }
 }
 
-export function extractCommand(body: CursorHookBody): { command: string; cwd: string; sessionId: string; tool: string; id: string } | null {
-  let command = body.command?.trim() ?? ''
-  if (!command && body.tool_input && typeof body.tool_input === 'object' && typeof body.tool_input.command === 'string') {
-    command = body.tool_input.command.trim()
-  }
-  if (!command && typeof body.tool_input === 'string') {
+function toolInputRecord(body: CursorHookBody): Record<string, unknown> {
+  if (body.tool_input && typeof body.tool_input === 'object') return { ...body.tool_input }
+  if (typeof body.tool_input === 'string') {
     try {
-      const parsed = JSON.parse(body.tool_input) as { command?: string }
-      if (typeof parsed.command === 'string') command = parsed.command.trim()
+      const parsed = JSON.parse(body.tool_input) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return { ...(parsed as Record<string, unknown>) }
+      }
     } catch {
       /* ignore */
     }
   }
-  const cwd =
-    body.cwd?.trim() ||
-    (body.tool_input && typeof body.tool_input === 'object' && body.tool_input.working_directory) ||
-    process.cwd()
-  if (!command) return null
-  return {
-    command,
-    cwd,
-    sessionId: body.session_id ?? body.conversation_id ?? 'cursor',
-    tool: body.tool_name ?? 'Shell',
-    id: body.tool_use_id ?? randomUUID(),
+  return {}
+}
+
+function pickPath(args: Record<string, unknown>): string {
+  for (const key of PATH_KEYS) {
+    const v = args[key]
+    if (typeof v === 'string' && v.trim()) return v.trim()
   }
+  return ''
+}
+
+function isShellTool(tool: string): boolean {
+  const t = tool.toLowerCase()
+  return t === 'shell' || t === 'bash'
+}
+
+export function askIsEnforced(body: CursorHookBody): boolean {
+  const event = body.hook_event_name ?? ''
+  if (event === 'beforeShellExecution') return true
+  if (event === 'preToolUse' || event === 'beforeMCPExecution') return false
+  return isShellTool(body.tool_name ?? '') || Boolean(body.command?.trim())
+}
+
+export function enforceCursorAction(body: CursorHookBody, action: Action): Action {
+  if (action !== 'ask') return action
+  return askIsEnforced(body) ? 'ask' : 'deny'
 }
 
 export function toInterrupt(body: CursorHookBody): Interrupt | null {
-  const extracted = extractCommand(body)
-  if (!extracted) return null
-  const root = gitRoot(extracted.cwd)
+  const input = toolInputRecord(body)
+  const command =
+    body.command?.trim() || (typeof input.command === 'string' ? input.command.trim() : '')
+  const args: Record<string, unknown> = command ? { ...input, command } : { ...input }
+  const filePath = pickPath(args)
+  const event = body.hook_event_name ?? ''
+  const tool = body.tool_name?.trim() || (command ? 'Shell' : event === 'beforeMCPExecution' ? 'mcp' : '')
+  if (!command && !filePath && event !== 'beforeMCPExecution') return null
+
+  const cwd =
+    body.cwd?.trim() ||
+    (typeof input.working_directory === 'string' ? input.working_directory : '') ||
+    process.cwd()
+  const root = gitRoot(cwd)
+  const detail = command || filePath || tool || 'tool'
+
   return {
-    id: extracted.id,
+    id: body.tool_use_id ?? randomUUID(),
     ts: Date.now(),
     host: 'cursor',
-    sessionId: extracted.sessionId,
-    cwd: extracted.cwd,
+    sessionId: body.session_id ?? body.conversation_id ?? 'cursor',
+    cwd,
     repo: basename(root),
-    tool: extracted.tool,
-    args: { command: extracted.command },
+    tool: tool || 'Shell',
+    args,
     fingerprint: '',
     title: '',
-    detail: extracted.command,
+    detail,
     destructive: false,
   }
 }
