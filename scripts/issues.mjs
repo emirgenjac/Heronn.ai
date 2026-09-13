@@ -4,6 +4,7 @@
  *   npm run test:issues
  *   npm run test:issues -- --fast
  *   npm run test:issues -- --only=park
+ *   npm run test:issues -- --only=deny   (blacklist cases; they park, they do not auto-deny)
  *
  * Daemon must already be up: npm run dev
  * Parked cases use ?hold=1 so cards show at http://localhost:5173
@@ -33,6 +34,7 @@ function deny(id, command, why, extra = {}) {
     id,
     kind: 'park',
     expect: 'park',
+    source: 'blacklist',
     why: `${why} — card, not auto-deny`,
     host: extra.host ?? 'cursor',
     command,
@@ -169,7 +171,9 @@ const CASES = [
   }),
 ]
 
-const SELECTED = ONLY ? CASES.filter((c) => c.kind === ONLY) : CASES
+const SELECTED = ONLY
+  ? CASES.filter((c) => (ONLY === 'deny' ? c.source === 'blacklist' : c.kind === ONLY))
+  : CASES
 
 function ts() {
   return new Date().toISOString().slice(11, 23)
@@ -382,7 +386,7 @@ async function main() {
   line(
     `summary  ${pass.length} PASS / ${fail.length} FAIL / ${results.length} total` +
       `  auto=${results.filter((r) => r.kind === 'auto').length}` +
-      `  deny=${results.filter((r) => r.kind === 'deny').length}` +
+      `  blacklist-park=${results.filter((r) => r.source === 'blacklist').length}` +
       `  park=${results.filter((r) => r.kind === 'park').length}` +
       `  ask=${results.filter((r) => r.kind === 'ask').length}`,
   )

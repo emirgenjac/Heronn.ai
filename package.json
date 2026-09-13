@@ -12,6 +12,8 @@
     "loadgen:baseline": "tsx loadgen/baseline.ts",
     "loadgen:stats": "tsx loadgen/stats.ts",
     "test:blacklist": "tsx --test server/policy/blacklist.test.ts",
+    "test:evaluate": "tsx --test server/policy/evaluate.test.ts",
+    "test:policy": "tsx --test server/policy/blacklist.test.ts server/policy/evaluate.test.ts server/policy/classifyCmd.test.ts",
     "test:issues": "node scripts/issues.mjs"
   },
   "dependencies": {

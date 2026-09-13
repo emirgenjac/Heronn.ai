@@ -52,13 +52,6 @@ time('isBlacklisted(git push origin --force)', n, () => {
   isBlacklisted('git push origin main --force', forceOrigin.cwd, forceOrigin.repo)
 })
 
-await evaluateCommand(force)
 const t0 = performance.now()
-for (let i = 0; i < n; i++) await evaluateCommand(irq('git push --force'))
-console.log(`${'evaluateCommand(git push --force)'.padEnd(44)} ${((performance.now() - t0) / n).toFixed(3)} ms`)
-
-const t1 = performance.now()
-for (let i = 0; i < n; i++) await evaluateCommand(irq('git push origin main --force'))
-console.log(
-  `${'evaluateCommand(git push origin --force)'.padEnd(44)} ${((performance.now() - t1) / n).toFixed(3)} ms\n`,
-)
+for (let i = 0; i < n; i++) await evaluateCommand(irq('npm install lodash'))
+console.log(`${'evaluateCommand(npm install lodash)'.padEnd(44)} ${((performance.now() - t0) / n).toFixed(3)} ms\n`)
