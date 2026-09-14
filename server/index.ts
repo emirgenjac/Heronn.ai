@@ -268,14 +268,22 @@ app.post('/api/replay', async (req, res) => {
 
 app.post('/hook/claude-code', async (req, res) => {
   const started = Date.now()
+  const eventName = (body: unknown): string => {
+    if (body && typeof body === 'object' && 'hook_event_name' in body) {
+      const name = (body as { hook_event_name?: unknown }).hook_event_name
+      if (typeof name === 'string' && name.trim()) return name.trim()
+    }
+    return 'PreToolUse'
+  }
   try {
     const parsed = ClaudeCodeHookSchema.safeParse(req.body)
     if (!parsed.success) {
       console.log(`hook claude-code unparseable elapsed=${Date.now() - started}ms`)
-      res.json(toResponse('ask', 'unparseable hook body'))
+      res.json(toResponse('ask', 'unparseable hook body', eventName(req.body)))
       return
     }
     const interrupt = toInterrupt(parsed.data)
+    const hookEvent = parsed.data.hook_event_name?.trim() || 'PreToolUse'
     console.log(
       `hook claude-code tool=${interrupt.tool} cwd=${interrupt.cwd} session=${interrupt.sessionId}`,
     )
@@ -283,14 +291,14 @@ app.post('/hook/claude-code', async (req, res) => {
     res.setTimeout(0)
     if (req.query.hold === '1') {
       void evaluateCommand(interrupt, { hold: true })
-      res.json(toResponse('ask', 'parked'))
+      res.json(toResponse('ask', 'parked', hookEvent))
       return
     }
     const action = await evaluateCommand(interrupt)
-    res.json(toResponse(action, `decision: ${action}`))
+    res.json(toResponse(action, `decision: ${action}`, hookEvent))
   } catch (err) {
     console.log(`hook claude-code error=${err instanceof Error ? err.message : 'unknown'}`)
-    res.json(toResponse('ask', 'hook error'))
+    res.json(toResponse('ask', 'hook error', eventName(req.body)))
   } finally {
     console.log(`hook claude-code elapsed=${Date.now() - started}ms`)
   }

@@ -58,7 +58,9 @@
         "python scripts/seed_users.py --env local --limit 25",
         "curl",
         "ffmpeg -i demo.mp4 -ss 00:00:03 -frames:v 1 tmp/frame.png",
-        "ffmpeg -i clip.mp4 -ss 00:00:03 -frames:v 1 tmp/thumb.png"
+        "ffmpeg -i clip.mp4 -ss 00:00:03 -frames:v 1 tmp/thumb.png",
+        "python scripts/seed_demo.py --env local --limit 25",
+        "pytest tests/test_session.py -k login --maxfail=1"
       ],
       "decisions": [
         {
@@ -174,6 +176,18 @@
           "class": "unknown",
           "action": "allow",
           "ts": 1789295537565
+        },
+        {
+          "command": "python scripts/seed_demo.py --env local --limit 25",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789297284076
+        },
+        {
+          "command": "pytest tests/test_session.py -k login --maxfail=1",
+          "class": "unknown",
+          "action": "allow",
+          "ts": 1789312060063
         }
       ]
     }

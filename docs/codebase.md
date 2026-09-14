@@ -159,7 +159,7 @@ Response:
 
 ### Claude Code — `server/adapters/claudeCode.ts`
 
-`{ session_id, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only.
+`{ session_id?, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only (`permissionDecision` allow/deny/ask). `.claude/settings.json` runs `node .claude/hooks/relay.mjs` against `POST /hook/claude-code`. If the daemon is unreachable, that relay returns `ask` and exits 0 so Claude Code’s native permission UI still runs.
 
 ---
 
