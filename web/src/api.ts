@@ -87,6 +87,10 @@ export function subscribe(onData: (snap: Snapshot) => void): () => void {
   if (!LIVE) return subscribeMock(onData)
 
   let source: EventSource | null = null
+  let retry: ReturnType<typeof setTimeout> | null = null
+  let delay = 1000
+  let stopped = false
+
   const handle = (raw: string) => {
     try {
       onData(JSON.parse(raw) as Snapshot)
@@ -95,17 +99,41 @@ export function subscribe(onData: (snap: Snapshot) => void): () => void {
     }
   }
 
-  void fetch('/api/groups')
-    .then((res) => res.json())
-    .then((data: Snapshot) => onData(data))
-    .catch(() => {})
+  const pullGroups = () => {
+    void fetch('/api/groups')
+      .then((res) => res.json())
+      .then((data: Snapshot) => {
+        if (!stopped) onData(data)
+      })
+      .catch(() => {})
+  }
 
-  source = new EventSource('/api/stream')
-  source.addEventListener('update', (ev: MessageEvent<string>) => {
-    handle(ev.data)
-  })
+  const connect = () => {
+    if (stopped) return
+    pullGroups()
+    source = new EventSource('/api/stream')
+    source.addEventListener('update', (ev: MessageEvent<string>) => {
+      handle(ev.data)
+    })
+    source.onopen = () => {
+      delay = 1000
+    }
+    source.onerror = () => {
+      source?.close()
+      source = null
+      if (stopped || retry) return
+      retry = setTimeout(() => {
+        retry = null
+        connect()
+      }, delay)
+      delay = Math.min(delay * 2, 8000)
+    }
+  }
 
+  connect()
   return () => {
+    stopped = true
+    if (retry) window.clearTimeout(retry)
     source?.close()
   }
 }
@@ -128,19 +156,29 @@ export function subscribeDiag(onData: (diag: Diag) => void): () => void {
   if (!LIVE) return () => {}
 
   let stopped = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let delay = 1000
+
   const pull = () => {
+    if (stopped) return
     void fetch('/api/diag')
       .then((res) => res.json())
       .then((data: Diag) => {
-        if (!stopped) onData(data)
+        if (stopped) return
+        delay = 1000
+        onData(data)
       })
-      .catch(() => {})
+      .catch(() => {
+        delay = Math.min(delay * 2, 8000)
+      })
+      .finally(() => {
+        if (!stopped) timer = setTimeout(pull, delay)
+      })
   }
   pull()
-  const timer = window.setInterval(pull, 1000)
   return () => {
     stopped = true
-    window.clearInterval(timer)
+    if (timer) window.clearTimeout(timer)
   }
 }
 

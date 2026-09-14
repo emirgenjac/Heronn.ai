@@ -159,7 +159,7 @@ Response:
 
 ### Claude Code — `server/adapters/claudeCode.ts`
 
-`{ session_id, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only.
+`{ session_id?, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only (`permissionDecision` allow/deny/ask). `.claude/settings.json` runs `node .claude/hooks/relay.mjs` against `POST /hook/claude-code`. If the daemon is unreachable, that relay returns `ask` and exits 0 so Claude Code’s native permission UI still runs.
 
 ---
 
@@ -275,7 +275,7 @@ Dark, keyboard-first queue. `App.tsx`:
 
 Allow + always-allow + not destructive → `createRule: true`, `scope: 'repo'`, `by: 'web'`. Toast: “Rule created — future matches auto-approved.” Empty state: **Nothing needs you.** Footer shows `LIVE` or `MOCK`.
 
-`web/vite.config.ts` proxies `/api` to `localhost:7777` with timeouts 0 so SSE survives.
+`web/vite.config.ts` proxies `/api` to `127.0.0.1:7777` with timeouts 0 so SSE survives. Transient proxy errors (`ECONNREFUSED` / `ECONNRESET` while `tsx watch` restarts the daemon) are not printed as Vite errors. The UI backs off diag/SSE retries while `:7777` is down.
 
 ---
 

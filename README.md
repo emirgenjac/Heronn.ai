@@ -34,11 +34,11 @@ VS Code can run the servers. It cannot fire [`.cursor/hooks.json`](.cursor/hooks
 
 ## Claude Code PreToolUse hook
 
-Point a `PreToolUse` command hook at the daemon. Pipe stdin JSON to the server and set a hook timeout of at least 540s so a parked permission request can wait for a human:
+This repo ships [`.claude/settings.json`](.claude/settings.json). A Node relay ([`.claude/hooks/relay.mjs`](.claude/hooks/relay.mjs)) POSTs hook stdin to `http://127.0.0.1:7777/hook/claude-code` with a 540s timeout (Windows-safe, same idea as the Cursor relay). Matcher: `Bash|Write|Edit|NotebookEdit`.
 
-```bash
-curl -sS -X POST http://127.0.0.1:7777/hook/claude-code -H "Content-Type: application/json" --data-binary @-
-```
+If the daemon is down, the relay exits 0 and returns `permissionDecision: ask`, so Claude Code shows its own permission prompt. When the daemon is up, policy runs as usual (blacklist → class allow → ask/park).
+
+Open this folder in Claude Code. Reload after git pull if hooks do not fire.
 
 ## Cursor beforeShellExecution / PreToolUse hook
 

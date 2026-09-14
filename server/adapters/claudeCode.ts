@@ -4,15 +4,17 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { Action, Interrupt } from '../../shared/types.ts'
 
-export const ClaudeCodeHookSchema = z.object({
-  session_id: z.string(),
-  cwd: z.string(),
-  tool_name: z.string(),
-  tool_input: z.record(z.string(), z.unknown()).optional().default({}),
-  tool_use_id: z.string().optional(),
-  permission_mode: z.string().optional(),
-  hook_event_name: z.string().optional(),
-})
+export const ClaudeCodeHookSchema = z
+  .object({
+    session_id: z.string().optional().default('claude'),
+    cwd: z.string().optional().default(() => process.cwd()),
+    tool_name: z.string(),
+    tool_input: z.record(z.string(), z.unknown()).optional().default({}),
+    tool_use_id: z.string().optional(),
+    permission_mode: z.string().optional(),
+    hook_event_name: z.string().optional(),
+  })
+  .passthrough()
 
 export type ClaudeCodeHookBody = z.infer<typeof ClaudeCodeHookSchema>
 
@@ -26,28 +28,39 @@ function gitRoot(cwd: string): string {
   }
 }
 
+function interruptDetail(body: ClaudeCodeHookBody): string {
+  const args = body.tool_input
+  if (typeof args.command === 'string' && args.command.trim()) return args.command.trim()
+  for (const key of ['file_path', 'path', 'file', 'filepath', 'target', 'filename'] as const) {
+    const v = args[key]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return body.tool_name
+}
+
 export function toInterrupt(body: ClaudeCodeHookBody): Interrupt {
-  const root = gitRoot(body.cwd)
+  const cwd = body.cwd || process.cwd()
+  const root = gitRoot(cwd)
   return {
     id: body.tool_use_id ?? randomUUID(),
     ts: Date.now(),
     host: 'claude-code',
-    sessionId: body.session_id,
-    cwd: body.cwd,
+    sessionId: body.session_id || 'claude',
+    cwd,
     repo: basename(root),
     tool: body.tool_name,
     args: body.tool_input,
     fingerprint: '',
     title: '',
-    detail: '',
+    detail: interruptDetail(body),
     destructive: false,
   }
 }
 
-export function toResponse(action: Action, reason: string): object {
+export function toResponse(action: Action, reason: string, hookEventName = 'PreToolUse'): object {
   return {
     hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
+      hookEventName,
       permissionDecision: action,
       permissionDecisionReason: reason,
     },
