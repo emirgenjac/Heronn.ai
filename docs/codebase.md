@@ -159,7 +159,7 @@ Response:
 
 ### Claude Code — `server/adapters/claudeCode.ts`
 
-`{ session_id?, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only (`permissionDecision` allow/deny/ask). `.claude/settings.json` runs `node .claude/hooks/relay.mjs` against `POST /hook/claude-code`. If the daemon is unreachable, that relay returns `ask` and exits 0 so Claude Code’s native permission UI still runs.
+`{ session_id?, cwd, tool_name, tool_input, tool_use_id? }`. Same git-root walk. Response is nested `hookSpecificOutput` only (`permissionDecision` allow/deny/ask). `.claude/settings.json` runs `node .claude/hooks/relay.mjs` against `POST /hook/claude-code`. If the daemon is unreachable or returns a non-200 response, that relay exits 2 and writes nothing to stdout. Claude Code blocks the tool on exit 2.
 
 ---
 
@@ -289,6 +289,7 @@ Generates **real** Claude Code traffic against a **throwaway clone of a public r
 
 - Parse error → **ask**, never allow.
 - Daemon / hook crash with Cursor `failClosed: true` → shell **blocked**.
+- Claude relay cannot reach the daemon, or the daemon returns a non-200 → exit 2, tool **blocked**. Exit 1 does not block.
 - Blacklist → deny, no park, no allow write.
 - `git-destructive` / `unknown` → never class-auto-allow.
 - Destructive interrupt → `createRule` ignored.
