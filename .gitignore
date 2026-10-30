@@ -6,3 +6,12 @@ dist
 loadgen/logs/
 test/policy/
 
+# Local secrets and agent notes. Do not force-add these.
+.env
+.env.*
+!.env.example
+AGENTS.MD
+*.pem
+*.key
+credentials.json
+
