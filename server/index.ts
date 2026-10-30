@@ -34,6 +34,7 @@ import {
   recordHostAllow,
 } from './snapshot.ts'
 import { onParkExpire, settle } from './waiters.ts'
+import { listenOnLoopback } from './bind.ts'
 
 const PolicyOpSchema = z.object({
   op: z.enum(['allow', 'deny', 'forget']),
@@ -407,8 +408,8 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
   next(err)
 })
 
-const server = app.listen(7777, () => {
-  console.log('server listening on http://localhost:7777')
+const server = listenOnLoopback(app, 7777, () => {
+  console.log('server listening on http://127.0.0.1:7777')
 })
 server.requestTimeout = 0
 server.headersTimeout = 0
