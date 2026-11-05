@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { Action, Group } from '../../../shared/types.ts'
+import { canRememberScope } from '../../../shared/queueDecision.ts'
 import type { QueueAgent } from '../api.ts'
 import { formatAgo, formatHost } from '../format.ts'
 import { DUR_EXPAND, EASE_APPLE, dur, gsap, useGSAP } from '../motion.ts'
@@ -177,25 +178,25 @@ export function InterruptCard({
           {expanded ? 'Hide details' : 'Details'}
         </button>
         <label
-          className={`check${group.destructive ? ' disabled' : ''}`}
-          title={group.destructive ? 'destructive actions can never become a rule' : undefined}
+          className={`check${!canRememberScope(group.destructive) ? ' disabled' : ''}`}
+          title={canRememberScope(group.destructive) ? undefined : 'destructive actions can never become a rule'}
         >
           <input
             type="checkbox"
-            checked={alwaysOn && !group.destructive}
-            disabled={group.destructive}
+            checked={alwaysOn && canRememberScope(group.destructive)}
+            disabled={!canRememberScope(group.destructive)}
             onChange={onToggleAlways}
           />
           <span>this project</span>
         </label>
         <label
-          className={`check${group.destructive ? ' disabled' : ''}`}
-          title={group.destructive ? 'destructive actions can never become a rule' : undefined}
+          className={`check${!canRememberScope(group.destructive) ? ' disabled' : ''}`}
+          title={canRememberScope(group.destructive) ? undefined : 'destructive actions can never become a rule'}
         >
           <input
             type="checkbox"
-            checked={machineOn && !group.destructive}
-            disabled={group.destructive}
+            checked={machineOn && canRememberScope(group.destructive)}
+            disabled={!canRememberScope(group.destructive)}
             onChange={onToggleMachine}
           />
           <span>this PC</span>
