@@ -35,6 +35,7 @@ import {
 } from './snapshot.ts'
 import { onParkExpire, settle } from './waiters.ts'
 import { listenOnLoopback } from './bind.ts'
+import { daemonMayRemember } from '../shared/queueDecision.ts'
 
 const PolicyOpSchema = z.object({
   op: z.enum(['allow', 'deny', 'forget']),
@@ -214,11 +215,7 @@ app.post('/api/decide', (req, res) => {
   const destructive = rows.some((row) => row.destructive === 1)
   markDecided(decision.interruptIds, decision.action, decision.by, Date.now())
   settle(decision.interruptIds, decision.action)
-  if (
-    decision.createRule &&
-    (decision.action === 'allow' || decision.action === 'deny') &&
-    !destructive
-  ) {
+  if (daemonMayRemember(decision.createRule, decision.action, destructive)) {
     const first = rows[0]
     if (first) {
       addRule(

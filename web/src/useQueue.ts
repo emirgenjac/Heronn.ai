@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { canRememberScope, queueCreateRule } from '../../shared/queueDecision.ts'
 import type { Action, Group, Stats } from '../../shared/types.ts'
 import { decide, subscribe, subscribeDiag, type Diag, type QueueAgent } from './api.ts'
 
@@ -108,7 +109,7 @@ export function useQueue(keysPaused: boolean) {
       let alwaysChanged = false
       for (const group of next) {
         if (
-          group.destructive ||
+          !canRememberScope(group.destructive) ||
           optedOffRef.current.has(group.fingerprint) ||
           machineRef.current.has(group.fingerprint) ||
           alwaysNext.has(group.fingerprint)
@@ -169,7 +170,7 @@ export function useQueue(keysPaused: boolean) {
     (group: Group, action: Action) => {
       const onPc = machineRef.current.has(group.fingerprint)
       const onRepo = alwaysRef.current.has(group.fingerprint)
-      const createRule = action === 'allow' && (onPc || onRepo) && !group.destructive
+      const createRule = queueCreateRule(action, group.destructive, onRepo, onPc)
       for (const id of group.interruptIds) dismissedRef.current.add(id)
       applyLocal(group.fingerprint, group.count, createRule)
       if (createRule) {
@@ -198,7 +199,7 @@ export function useQueue(keysPaused: boolean) {
   )
 
   const toggleAlways = useCallback((group: Group) => {
-    if (group.destructive) return
+    if (!canRememberScope(group.destructive)) return
     const next = new Set(alwaysRef.current)
     if (next.has(group.fingerprint)) {
       next.delete(group.fingerprint)
@@ -216,7 +217,7 @@ export function useQueue(keysPaused: boolean) {
   }, [])
 
   const toggleMachine = useCallback((group: Group) => {
-    if (group.destructive) return
+    if (!canRememberScope(group.destructive)) return
     const next = new Set(machineRef.current)
     if (next.has(group.fingerprint)) {
       next.delete(group.fingerprint)
