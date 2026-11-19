@@ -226,7 +226,7 @@ Lookup after blacklist: **machine** (`this PC`) prefixes then classes, then **pr
 }
 ```
 
-`recordAllow(repo, command, class, scope)` writes `machine` when `scope` is `global`, else `projects[repo]`. Engine `addRule` already uses the same scope (repo vs global fingerprint). Writes are a sync queue (read-modify-write). Unknown commands store the full normalized command as prefix, not the class.
+`recordAllow(repo, command, class, scope)` writes `machine` when `scope` is `global`, else `projects[repo]`. Engine `addRule` already uses the same scope (repo vs global fingerprint). Writes are a sync queue (read-modify-write). Unknown commands store the full normalized command as prefix, not the class. A command with a newline, or a prefix longer than 160 characters, is not stored. `decisions` still keeps the command text.
 
 On `POST /api/decide`, if `createRule` and allow and **not** destructive: engine `addRule` **and** `recordAllow` with `decision.scope`. Destructive rows never become rules.
 

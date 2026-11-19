@@ -1,5 +1,6 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { allowPrefixFor } from './allowPrefix.ts'
 import { classifyCommand, neverAutoAllow, stablePrefix, type CommandClass } from './classifyCmd.ts'
 import { longestPrefix, normalizeCmd } from './prefix.ts'
 
@@ -120,9 +121,11 @@ function applyAllow(policy: ScopedPolicy, command: string, cls: CommandClass): v
   if (!neverAutoAllow(cls) && !policy.allowClasses.includes(cls)) {
     policy.allowClasses.push(cls)
   }
-  const prefix = neverAutoAllow(cls) ? normalizeCmd(command) : stablePrefix(command)
-  const exists = policy.allowPrefixes.some((p) => normalizeCmd(p) === normalizeCmd(prefix))
-  if (prefix && !exists) policy.allowPrefixes.push(prefix)
+  const prefix = allowPrefixFor(command, cls)
+  if (prefix) {
+    const exists = policy.allowPrefixes.some((p) => normalizeCmd(p) === normalizeCmd(prefix))
+    if (!exists) policy.allowPrefixes.push(prefix)
+  }
   policy.decisions.push({ command, class: cls, action: 'allow', ts: Date.now() })
 }
 
