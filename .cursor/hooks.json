@@ -35,6 +35,19 @@
         "timeout": 30,
         "matcher": "Shell"
       }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/review.mjs",
+        "timeout": 10
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .cursor/hooks/review.mjs",
+        "timeout": 15,
+        "loop_limit": 5
+      }
     ]
   }
 }

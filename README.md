@@ -1,14 +1,18 @@
-# Adria Hack AI Project
+# Heronn
 
-Local policy daemon for AI coding agents: blacklist dangerous shell, auto-allow by command class, otherwise park for a human. Node 22 + TypeScript (tsx), Express, better-sqlite3, React + Vite, zod.
+Heronn is a policy daemon for Cursor and Claude Code. It runs on your machine and listens only on 127.0.0.1.
 
-## Docs
+A hook sends each command to Heronn before it runs. Heronn allows it, or holds the hook until you click Allow or Deny.
 
-- [2-minute pitch](docs/pitch.md) — selling points, read-aloud script
-- [Codebase](docs/codebase.md) — how this repo is wired
-- [Roadmap](docs/roadmap.md) — shipped vs next vs on-prem
-- [Enterprise on-prem](docs/on-prem.md)
-- [Bring-your-own AI stack](docs/ai-stack.md)
+## What it decides
+
+The checks run in this order:
+
+1. Blacklist. `git push --force`, `rm -rf`, and the other entries in `server/policy/policies.json` wait on the Queue. You can allow one once. That allow is not saved.
+2. An allow saved for this PC, or for this project, lets that command class or prefix through.
+3. A saved deny waits on the Queue. Anything else is written to Logs as ask, and the hook returns. It does not stay on the Queue.
+
+Saved allows are stored in `server/policy/policies.json`.
 
 ## Run
 
@@ -17,39 +21,34 @@ npm install
 npm run dev
 ```
 
-- Server: http://localhost:7777 (`GET /api/health` → `{ "ok": true }`)
-- Web: http://localhost:5173 (proxies `/api` to the server)
+- Daemon: http://127.0.0.1:7777 — `GET /api/health` returns `{ "ok": true }`
+- Queue: http://localhost:5173
 
-## Colleague checklist (Cursor execs not showing)
+Node 22, TypeScript, Express, better-sqlite3, React, and Vite.
 
-Refreshing http://localhost:5173 cannot invent cards. The UI only lists commands that already `POST`ed to `/hook/cursor`.
+## Docs
 
-VS Code can run the servers. It cannot fire [`.cursor/hooks.json`](.cursor/hooks.json).
+- [Pitch](docs/pitch.md) — overview. The code in this repo is the behavior.
+- [Codebase](docs/codebase.md) — how the repo is wired
+- [Roadmap](docs/roadmap.md)
+- [On-prem notes](docs/on-prem.md)
+- [AI stack](docs/ai-stack.md) — not part of Heronn. Nothing in that file is implemented.
 
-1. **File → Open Folder** on this repo root in **Cursor** (the folder that contains `.cursor/hooks.json`). Chat with the Agent **in that window**, not a Cloud Agent and not a different project.
-2. `npm run dev` (VS Code is fine for this). Footer on http://localhost:5173 must say **LIVE**, not MOCK.
-3. `GET http://127.0.0.1:7777/api/health` → `{ "ok": true }`. Header should show `hooks never` until the Agent runs a shell command, then `hooks Xs ago`. `GET /api/diag` `cursorHookHits` must increase.
-4. Ask the Agent for an **unknown** command (`python evil.py`), not `npm install` (that class may already auto-allow).
-5. Cursor Settings → Hooks. Reload the window after git pull. If the hook cannot find `node` or the daemon, `failClosed` **blocks the shell** and the UI stays empty — check the **Hooks** output channel for `relay failed`.
+## If the Queue stays empty
 
-## Claude Code PreToolUse hook
+The Queue lists commands that are still waiting. Refreshing the page does not create one.
 
-This repo ships [`.claude/settings.json`](.claude/settings.json). A Node relay ([`.claude/hooks/relay.mjs`](.claude/hooks/relay.mjs)) POSTs hook stdin to `http://127.0.0.1:7777/hook/claude-code` with a 540s timeout (Windows-safe, same idea as the Cursor relay). Matcher: `Bash|Write|Edit|NotebookEdit`.
+Open this repo in Cursor, in the folder that contains `.cursor/hooks.json`. VS Code can start the servers. It does not run those hooks.
 
-If the daemon is down or returns an HTTP error, the relay writes the reason to stderr and exits 2. Claude Code treats exit 2 as a block, so the tool does not run. Exit 1 would not block. When the daemon is up, policy runs as usual (blacklist → class allow → ask/park).
+1. Run `npm run dev`. The footer on http://localhost:5173 should say LIVE.
+2. `GET http://127.0.0.1:7777/api/health` should return `{ "ok": true }`.
+3. Ask the agent to run a blacklisted command. `npm install` will not wait if that class is already allowed.
+4. If the hook cannot reach the daemon, Cursor blocks the shell. The Hooks output shows `relay failed`.
 
-Open this folder in Claude Code. Reload after git pull if hooks do not fire.
+A waiting command stays for 9 minutes. With no click, it moves to Logs as ask.
 
-## Cursor beforeShellExecution / PreToolUse hook
+## Hooks
 
-This repo ships [`.cursor/hooks.json`](.cursor/hooks.json). A small Node relay ([`.cursor/hooks/relay.mjs`](.cursor/hooks/relay.mjs)) POSTs hook stdin to `http://127.0.0.1:7777/hook/cursor` with a 540s timeout so the hook works on Windows PowerShell as well as Unix. `beforeShellExecution` is `failClosed: true` so a down daemon or timeout blocks the shell instead of allowing it.
+Cursor uses `.cursor/hooks.json`. The relay posts to `http://127.0.0.1:7777/hook/cursor` and can wait 540 seconds. The shell hook is fail-closed: a down daemon blocks the command.
 
-The daemon accepts either Cursor body shape:
-
-- `{ "command", "cwd", "sandbox?" }` (`beforeShellExecution`)
-- `{ "tool_name", "tool_input": { "command" }, "cwd", "session_id?" }` (`preToolUse`)
-
-Policy order: global blacklist (immediate deny) → **this PC** allowlist → **this project** allowlist → park for the web UI. Approving with “this project” or “this PC” writes the command class and prefix into `server/policy/policies.json` (`projects[repo]` vs `machine`). `npm install` and `pnpm add` still share class `dependency`. Blacklist is always machine-wide and cannot be weakened by a project allow.
-
-
-Spoken policy prompts, pack import/export by id, boss RBAC, on-prem Compose, and bring-your-own models are planned — see [docs/roadmap.md](docs/roadmap.md).
+Claude Code uses `.claude/hooks/relay.mjs`. The relay posts to `http://127.0.0.1:7777/hook/claude-code`. If the daemon is down or returns an error, the relay exits 2 and the tool does not run.
