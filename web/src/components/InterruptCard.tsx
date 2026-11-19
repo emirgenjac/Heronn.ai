@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { Action, Group } from '../../../shared/types.ts'
 import { canRememberScope } from '../../../shared/queueDecision.ts'
+import { rulePreview } from '../../../server/policy/rulePreview.ts'
+import policies from '../../../server/policy/policies.json'
 import type { QueueAgent } from '../api.ts'
 import { formatAgo, formatHost } from '../format.ts'
 import { DUR_EXPAND, EASE_APPLE, dur, gsap, useGSAP } from '../motion.ts'
@@ -48,6 +50,17 @@ export function InterruptCard({
   const uniqueSessions = new Set(agents.map((a) => a.sessionId)).size
   const hosts = agents.map((agent) => agent.host)
   const canExpand = cmdOverflows || cmdOpen || group.detail.includes('\n')
+  const rememberProject = alwaysOn && canRememberScope(group.destructive)
+  const rememberPc = machineOn && canRememberScope(group.destructive)
+  const ruleText =
+    rememberPc || rememberProject
+      ? rulePreview(
+          lead?.command || group.detail,
+          rememberPc ? 'global' : 'repo',
+          repoLabel ?? '',
+          policies.classMap,
+        )
+      : null
 
   useLayoutEffect(() => {
     const fold = foldRef.current
@@ -201,6 +214,7 @@ export function InterruptCard({
           />
           <span>this PC</span>
         </label>
+        {ruleText ? <p className="rule-line">{ruleText}</p> : null}
       </div>
 
       <Reveal open={expanded}>
